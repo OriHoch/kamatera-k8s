@@ -1,0 +1,15 @@
+global:
+  environmentName: testing
+
+#traefik:
+# TODO: enable acme once traefik is running on standard ports
+#  acmeEmail: ori@uumpa.com
+#  acmeDomains: |
+#    [[acme.domains]]
+#      main = "kamatera.uumpa.net"
+
+nginx:
+  # htpasswd -c environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd superadmin
+  # kubectl create secret generic nginx-htpasswd --from-file=environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd
+  htpasswdSecretName: nginx-htpasswd
+  enableDashboard: true

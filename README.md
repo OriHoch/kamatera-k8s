@@ -2,7 +2,92 @@
 
 Documentation and code to help using Kamatera cloud for running Kubernetes workloads.
 
-## Creating a new single node cluster
+
+## Connecting to an existing environment
+
+Assuming there is a corresponding environment under `environments` directory:
+
+```
+source switch_environment.sh testing
+```
+
+Verify you are connected to the cluster:
+
+```
+kubectl get nodes
+```
+
+You should have tab completion:
+
+```
+kubectl describe node <TAB><TAB>
+```
+
+
+## Upgrading the release
+
+```
+./helm_upgrade.sh
+```
+
+Depending on the changes you might need to add arguments to helm upgrade, refer to the Helm documentation for details
+
+This command will ensure changes are deployed at the cost of some down-time:
+
+```
+./helm_upgrade.sh --force --recreate-pods
+```
+
+
+## Installing the Helm release
+
+Install helm and tiller:
+
+```
+kubectl apply -f helm-tiller-rbac-config.yaml
+helm init --service-account tiller
+```
+
+Install the release
+
+```
+./helm_upgrade.sh --install
+```
+
+
+## Installing the load balancer to allow secure external access to the cluster
+
+We use traefik to provide load balancing into the cluster, to simplify the setup, Traefik is installed locally, outside of Kubernetes.
+
+SSH into a cluster node and start the traefik container
+
+```
+ssh root@cluster-node-ip
+mkdir -p /etc/traefik
+nano /etc/traefik/traefik.toml
+```
+
+Paste `traefik.toml` from this directory
+
+Start the traefik docker container on the relevant cluster node
+
+```
+docker run --name=traefik -d -p 80:80 -p 443:443 \
+           -v /etc/traefik:/etc-traefik -v /var/traefik-acme:/traefik-acme \
+           traefik --configFile=/etc-traefik/traefik.toml
+```
+
+Set DNS to point to the node's IP
+
+
+## Creating a new environment
+
+Copy an existing environment, modify the `.env` file.
+
+The environment should have an `secret-admin.conf` file (not committed to Git) which is used to access the cluster.
+
+
+## Creating a new cluster
 
 * Log-in to [Kamatera Console](https://console.kamatera.com/)
 * Sign up and setup billing
@@ -70,43 +155,14 @@ Allow to schedule workloads on the master node
 kubectl taint nodes --all node-role.kubernetes.io/master-
 ```
 
-Install the dashboard and give the dashboard the appropriate permissions (don't expose it publically!)
-
-```
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/master/src/deploy/recommended/kubernetes-dashboard.yaml
-kubectl create clusterrolebinding dashboard-cluster-admin --clusterrole=cluster-admin --serviceaccount=kube-system:kubernetes-dashboard
-```
-
 Exit the server
 
 ```
 exit
 ```
 
-
-## Creating an environment
-
-Each environment should have a directory under `environments` with a `.env` file with the environment configurations.
-
-The environment directory should also contain a secret file to connect to the cluster, you can get it using scp:
+Copy the admin.conf file and keep it under the corresponding environment directory -
 
 ```
 scp root@your.server.external.ip:/etc/kubernetes/admin.conf environments/ENVIRONMENT_NAME/secret-admin.conf
 ```
-
-You can now connect to this environment using:
-
-```
-source switch_environment.sh testing
-```
-
-## Accessing the dashboard via a local proxy
-
-Once you are connected to an environment you can start a proxy to view the dashboard
-
-```
-kubectl proxy
-```
-
-Dashboard should be available at http://localhost:8001/ui
-

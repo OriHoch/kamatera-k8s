@@ -1,0 +1,36 @@
+# https://docs.traefik.io/configuration/commons/
+
+# debug = true
+
+defaultEntryPoints = ["http", "https"]
+
+[entryPoints]
+[entryPoints.http]
+  address = ":80"
+    [entryPoints.http.redirect]
+      entryPoint = "https"
+
+[entryPoints.https]
+  address = ":443"
+    [entryPoints.https.tls]
+
+# let's encrypt automatic ssl certificate issue and renewal
+[acme]
+  email = your@email.com
+  storage = "/traefik-acme/acme.json"
+  entryPoint = "https"
+  [[acme.domains]]
+    main = "kamatera.uumpa.net"
+
+[file]
+
+[backends]
+  [backends.nginx]
+    [backends.nginx.servers.server1]
+      # Nginx service cluster IP
+      url = "http://10.106.37.241:30080"
+
+[frontends]
+  [frontends.default]
+    backend="nginx"
+    passHostHeader = true

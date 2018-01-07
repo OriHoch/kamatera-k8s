@@ -1,0 +1,12 @@
+global:
+  projectName: kamaterak8s
+
+kubernetesDashboard:
+  enabled: true
+  clusterRoleBinding: true
+
+traefik:
+  enabled: true
+
+nginx:
+  enabled: true

@@ -1,0 +1,35 @@
+{{ if .Values.nginx.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+data:
+  # default backend from traefik
+  default.conf: |
+    server {
+      listen 30080;
+      server_name _;
+
+      include /etc/nginx/conf.d/healthcheck.inc;
+
+      {{ if .Values.nginx.enableDashboard }}
+      location /dashboard/ {
+        proxy_pass http://10.104.9.121:9090/;
+        include /etc/nginx/conf.d/restricted.inc;
+      }
+      {{ end }}
+    }
+
+  healthcheck.inc: |
+    location = / {
+        return 200 'it works!';
+        add_header Content-Type text/plain;
+    }
+
+  restricted.inc: |
+    {{ if .Values.nginx.htpasswdSecretName }}
+    auth_basic "Restricted Content";
+    auth_basic_user_file /etc/nginx/htpasswd/secret-nginx-htpasswd;
+    {{ end }}
+
+{{ end }}
