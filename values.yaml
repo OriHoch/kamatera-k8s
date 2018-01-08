@@ -13,3 +13,5 @@ nginx:
 
 elasticsearch:
   enabled: false
+
+noise: true

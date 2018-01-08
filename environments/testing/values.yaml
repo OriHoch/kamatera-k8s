@@ -13,6 +13,16 @@ nginx:
   # kubectl create secret generic nginx-htpasswd --from-file=environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd
   htpasswdSecretName: nginx-htpasswd
   enableDashboard: true
+  enableKibana: true
 
 elasticsearch:
+  enabled: true
+
+heapster:
+  enabled: true
+
+grafana:
+  enabled: true
+
+influxdb:
   enabled: true

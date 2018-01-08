@@ -87,16 +87,17 @@ Copy an existing environment, modify the `.env` file.
 The environment should have an `secret-admin.conf` file (not committed to Git) which is used to access the cluster.
 
 
-## Creating a new cluster
+## Create a Kubernetes node / join / create a cluster
+
+This procedure creates a node that and sets it up to serve as master or node or both
 
 * Log-in to [Kamatera Console](https://console.kamatera.com/)
 * Sign up and setup billing
 * Create a new server with the following configuration:
   * Ubuntu Server 16.04 64bit
   * CPU = master node should have at least 2 cores, depending on workload
-  * RAM = at least 2GB
-  * SSD Disk = At least 20GB
-* Networking = enable both public and private network
+  * RAM = master node should have at least 4GB
+  * SSD Disk = master node should have at least 50GB
 
 SSH to your server with the password you specified during server setup
 
@@ -104,12 +105,11 @@ SSH to your server with the password you specified during server setup
 ssh root@your.server.external.ip
 ```
 
-Following commands should run from the server:
+Following commands should run from the server to setup kube-adm which is then used to setup and manage the cluster:
 
 ```
 swapoff -a
 echo "127.0.0.1 `hostname`" >> /etc/hosts
-sysctl net.bridge.bridge-nf-call-iptables=1
 apt-get update
 apt-get install -y docker.io apt-transport-https
 curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
@@ -123,33 +123,39 @@ cat << EOF > /etc/docker/daemon.json
   "exec-opts": ["native.cgroupdriver=cgroupfs"]
 }
 EOF
+sysctl net.bridge.bridge-nf-call-iptables=1
 systemctl restart docker
 systemctl restart kubelet
+```
+
+Now you can run the kubeadm join command to join an existing cluster.
+
+To create a new master node:
+
+```
 kubeadm init --pod-network-cidr=10.244.0.0/16
 ```
 
-Copy the kubeadm join command from the output
-
-It should look something like this:
+Keep the kubeadm join command from the output, it should look something like this, you can run this from other nodes to add them to the cluster:
 
 ```
 kubeadm join --token **** your.server.external.ip:6443 --discovery-token-ca-cert-hash sha256:*********
 ```
 
-Install networking
+Install networking:
 
 ```
 kubectl apply -f https://raw.githubusercontent.com/projectcalico/canal/master/k8s-install/1.7/rbac.yaml
 kubectl apply -f https://raw.githubusercontent.com/projectcalico/canal/master/k8s-install/1.7/canal.yaml
 ```
 
-Wait for kube-dns and all pods to be in `Running` status
+Wait for kube-dns and all pods to be in `Running` status:
 
 ```
 kubectl get pods --all-namespaces
 ```
 
-Allow to schedule workloads on the master node
+(Optional) Allow to schedule workloads on the master node
 
 ```
 kubectl taint nodes --all node-role.kubernetes.io/master-
@@ -165,4 +171,15 @@ Copy the admin.conf file and keep it under the corresponding environment directo
 
 ```
 scp root@your.server.external.ip:/etc/kubernetes/admin.conf environments/ENVIRONMENT_NAME/secret-admin.conf
+```
+
+
+## Add monitoring using heapster
+
+from local PC, with connected `kubectl`:
+
+```
+git clone git@github.com:kubernetes/heapster.git
+cd heapster
+
 ```

@@ -1,0 +1,26 @@
+{{ if .Values.noise }}
+apiVersion: batch/v1
+kind: Job
+#apiVersion: batch/v1beta1
+#kind: CronJob
+metadata:
+  name: noise
+spec:
+#  schedule: "*/1 * * * *"
+#  jobTemplate:
+#    spec:
+  completions: 10000
+  parallelism: 50
+  template:
+    metadata:
+      name: noise
+    spec:
+      containers:
+      - name: pipelines
+        image: orihoch/sk8s-pipelines@sha256:e89833818cef4f014b523ba1bedc074f060a78d2d16074459640149ef597b538
+        command:
+        - bash
+        - "-c"
+        - dpp run ./noise && dpp run ./amplify
+      restartPolicy: Never
+{{ end }}

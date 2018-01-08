@@ -28,5 +28,12 @@ spec:
         - containerPort: 5601
         env:
         - name: ELASTICSEARCH_URL
-          value: elasticsearch:9200
+          value: http://elasticsearch:9200
+        volumeMounts:
+        - name: kibana-conf
+          mountPath: /etc/kibana
+      volumes:
+      - name: kibana-conf
+        configMap:
+          name: kibana
 {{ end }}
