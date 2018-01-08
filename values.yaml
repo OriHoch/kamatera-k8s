@@ -10,3 +10,6 @@ traefik:
 
 nginx:
   enabled: true
+
+elasticsearch:
+  enabled: false
