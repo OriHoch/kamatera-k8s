@@ -1,19 +1,20 @@
 global:
   environmentName: testing
+  projectName: kamaterak8s
 
-#traefik:
-# TODO: enable acme once traefik is running on standard ports
-#  acmeEmail: ori@uumpa.com
-#  acmeDomains: |
-#    [[acme.domains]]
-#      main = "kamatera.uumpa.net"
+traefik:
+  enabled: true
+  acmeEmail: ori@uumpa.net
+  mainDomain: k8s4kamatera.uumpa.net
+  nginxServiceClusterIP: 10.102.1.36
 
 nginx:
+  enabled: true
   # htpasswd -c environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd superadmin
   # kubectl create secret generic nginx-htpasswd --from-file=environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd
   htpasswdSecretName: nginx-htpasswd
   enableDashboard: true
-  enableKibana: true
+#  enableKibana: true
 
 elasticsearch:
   enabled: true
@@ -26,3 +27,12 @@ grafana:
 
 influxdb:
   enabled: true
+
+kubernetesDashboard:
+  enabled: true
+  clusterRoleBinding: true
+
+#elasticsearch:
+#  enabled: false
+
+#noise: true

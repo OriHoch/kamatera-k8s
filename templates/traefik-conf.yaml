@@ -1,0 +1,45 @@
+{{ if .Values.traefik.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traefik
+  namespace: kube-system
+data:
+  traefik.toml: |
+    # https://docs.traefik.io/configuration/commons/
+
+    # debug = true
+
+    defaultEntryPoints = ["http", "https"]
+
+    [entryPoints]
+      [entryPoints.http]
+        address = ":80"
+          [entryPoints.http.redirect]
+            entryPoint = "https"
+
+      [entryPoints.https]
+        address = ":443"
+          [entryPoints.https.tls]
+
+    # let's encrypt automatic ssl certificate issue and renewal
+    [acme]
+    email = {{ .Values.traefik.acmeEmail | quote }}
+    storage = "/traefik-acme/acme.json"
+    entryPoint = "https"
+
+    [[acme.domains]]
+      main = {{ .Values.traefik.mainDomain | quote }}
+
+    [file]
+
+    [backends]
+      [backends.nginx]
+        [backends.nginx.servers.server1]
+          url = "http://{{ .Values.traefik.nginxServiceClusterIP }}:30080"
+
+    [frontends]
+      [frontends.default]
+        backend="nginx"
+        passHostHeader = true
+{{ end }}

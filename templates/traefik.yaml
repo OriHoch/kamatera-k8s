@@ -1,0 +1,42 @@
+{{ if .Values.traefik.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: traefik
+  template:
+    metadata:
+      labels:
+        app: traefik
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/traefik-conf.yaml") . | sha256sum }}
+    spec:
+      containers:
+      - name: traefik-conf
+        image: alpine
+        command:
+        - sh
+        - "-c"
+        - cp /traefik-conf/traefik.toml /etc/traefik/ && ls -lah /etc/traefik && while true; do sleep 86400; done
+        resources:
+          requests:
+            cpu: 1m
+            memory: 2Mi
+        volumeMounts:
+        - name: etc-traefik
+          mountPath: /etc/traefik
+        - name: traefik-conf
+          mountPath: /traefik-conf
+      volumes:
+      - name: etc-traefik
+        hostPath:
+          path: /etc/traefik
+          type: DirectoryOrCreate
+      - name: traefik-conf
+        configMap:
+          name: traefik
+{{ end }}

@@ -24,67 +24,25 @@ kubectl describe node <TAB><TAB>
 ```
 
 
-## Upgrading the release
+## Deployment
+
+Make sure helm and tiller are installed and latest version (locally and on the cluster):
+
+```
+kubectl apply -f helm-tiller-rbac-config.yaml
+helm init --service-account tiller --upgrade
+```
+
+Deploy
 
 ```
 ./helm_upgrade.sh
 ```
 
-Depending on the changes you might need to add arguments to helm upgrade, refer to the Helm documentation for details
+Depending on the changes you might need to add arguments to helm upgrade, refer to the Helm documentation for details.
 
-This command will ensure changes are deployed at the cost of some down-time:
-
-```
-./helm_upgrade.sh --force --recreate-pods
-```
-
-
-## Installing the Helm release
-
-Install helm and tiller:
-
-```
-kubectl apply -f helm-tiller-rbac-config.yaml
-helm init --service-account tiller
-```
-
-Install the release
-
-```
-./helm_upgrade.sh --install
-```
-
-
-## Installing the load balancer to allow secure external access to the cluster
-
-We use traefik to provide load balancing into the cluster, to simplify the setup, Traefik is installed locally, outside of Kubernetes.
-
-SSH into a cluster node and start the traefik container
-
-```
-ssh root@cluster-node-ip
-mkdir -p /etc/traefik
-nano /etc/traefik/traefik.toml
-```
-
-Paste `traefik.toml` from this directory
-
-Start the traefik docker container on the relevant cluster node
-
-```
-docker run --name=traefik -d -p 80:80 -p 443:443 \
-           -v /etc/traefik:/etc-traefik -v /var/traefik-acme:/traefik-acme \
-           traefik --configFile=/etc-traefik/traefik.toml
-```
-
-Set DNS to point to the node's IP
-
-
-## Creating a new environment
-
-Assuming you have an existing cluster you can use and you have the `secret-admin.conf` file for authentication to that cluster.
-
-You can copy another environment (under the `environments` directory) and modify the values, specifically, the `.env` file has the connection details and the `secret-admin.conf` file has the authentication secrets.
+* On first installation you should add `--install`
+* To force deployment at cost of down-time: `--force --recreate-pods`
 
 
 ## Create a Kubernetes master node
@@ -168,7 +126,12 @@ Copy the admin.conf file and keep it under the corresponding environment directo
 scp root@your.server.external.ip:/etc/kubernetes/admin.conf environments/ENVIRONMENT_NAME/secret-admin.conf
 ```
 
-Continue with creating a new environment section above.
+
+## Creating a new environment
+
+Assuming you have an existing cluster you can use and you have the `secret-admin.conf` file for authentication to that cluster.
+
+You can copy another environment (under the `environments` directory) and modify the values, specifically, the `.env` file has the connection details and the `secret-admin.conf` file has the authentication secrets.
 
 
 ## Join a cluster
@@ -176,12 +139,39 @@ Continue with creating a new environment section above.
 To add a node to the cluster - follow the steps in creating a new master node, but instead of `kubeadm init`, run the `kubeadm join` command you kept from the output of the init command.
 
 
-## Add monitoring using heapster
+## Installing the load balancer to allow secure external access to the cluster
 
-from local PC, with connected `kubectl`:
+We use traefik to provide load balancing into the cluster from outisde of the internal network.
+
+First, you should deploy the helm release which contains the traefik daemonset which allows to configure the traefik via helm values.
+
+Assuming the helm release is deployed, you need to just start the traefik docker container on each cluster node you wish to route external traffic to:
 
 ```
-git clone git@github.com:kubernetes/heapster.git
-cd heapster
+ssh root@cluster-node-ip docker run --name=traefik -d -p 80:80 -p 443:443 \
+                                    -v /etc/traefik:/etc-traefik -v /var/traefik-acme:/traefik-acme \
+                                    traefik --configFile=/etc-traefik/traefik.toml
+```
 
+If let's encrypt fails refer to the [traefik documentation](https://docs.traefik.io/configuration/acme/).
+
+If you want to run traefik for the same domain on more then one node, you should share the /var/traefik-acme directory between the nodes (e.g. via NFS shared folder)
+
+That's it, you can now set DNS to point to the node's IP
+
+You can create the following script to restart traefik in case of configuration changes:
+
+```
+echo "docker rm --force traefik; YOUR_TRAEFIK_DOCKER_RUN_COMMAND" > start_traefik.sh
+chmod +x start_traefik.sh
+```
+
+The load balancer is configured via `templates/traefik-conf.yaml` file, you can edit that file and then deploy the helm release.
+
+This makes sure that /etc/traefik/traefik.toml file is available on the host for the load balancer to use.
+
+After you make changes run the start_traefik.sh script on the node
+
+```
+./start_traefik.sh
 ```

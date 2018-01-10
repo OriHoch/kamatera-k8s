@@ -14,7 +14,7 @@ data:
 
       {{ if .Values.nginx.enableDashboard }}
       location /dashboard/ {
-        proxy_pass http://10.104.9.121:9090/;
+        proxy_pass http://kubernetes-dashboard.kube-system:9090/;
         include /etc/nginx/conf.d/restricted.inc;
       }
       {{ end }}
