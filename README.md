@@ -5,7 +5,7 @@ Documentation and code to help using Kamatera cloud for running Kubernetes workl
 
 ## Connecting to an existing environment
 
-Assuming there is a corresponding environment under `environments` directory:
+Assuming there is an existing cluster and corresponding environment under `environments` directory:
 
 ```
 source switch_environment.sh testing
@@ -82,12 +82,12 @@ Set DNS to point to the node's IP
 
 ## Creating a new environment
 
-Copy an existing environment, modify the `.env` file.
+Assuming you have an existing cluster you can use and you have the `secret-admin.conf` file for authentication to that cluster.
 
-The environment should have an `secret-admin.conf` file (not committed to Git) which is used to access the cluster.
+You can copy another environment (under the `environments` directory) and modify the values, specifically, the `.env` file has the connection details and the `secret-admin.conf` file has the authentication secrets.
 
 
-## Create a Kubernetes node / join / create a cluster
+## Create a Kubernetes master node
 
 This procedure creates a node that and sets it up to serve as master or node or both
 
@@ -128,31 +128,26 @@ systemctl restart docker
 systemctl restart kubelet
 ```
 
-Now you can run the kubeadm join command to join an existing cluster.
-
-To create a new master node:
+Create the master node:
 
 ```
 kubeadm init --pod-network-cidr=10.244.0.0/16
 ```
 
-Keep the kubeadm join command from the output, it should look something like this, you can run this from other nodes to add them to the cluster:
+Keep the kubeadm join command from the output, you can need it to join nodes to the cluster.
+
+Install networking on the master node (should be done once per cluster):
 
 ```
-kubeadm join --token **** your.server.external.ip:6443 --discovery-token-ca-cert-hash sha256:*********
-```
-
-Install networking:
-
-```
+export KUBECONFIG=/etc/kubernetes/admin.conf
 kubectl apply -f https://raw.githubusercontent.com/projectcalico/canal/master/k8s-install/1.7/rbac.yaml
 kubectl apply -f https://raw.githubusercontent.com/projectcalico/canal/master/k8s-install/1.7/canal.yaml
 ```
 
-Wait for kube-dns and all pods to be in `Running` status:
+When creating the cluster for the first time it might take a few minutes for everything to start, you just need to wait
 
 ```
-kubectl get pods --all-namespaces
+while ! kubectl get pods --all-namespaces | tee /dev/stderr | grep kube-dns- | grep Running; do echo "."; sleep 1; done
 ```
 
 (Optional) Allow to schedule workloads on the master node
@@ -172,6 +167,13 @@ Copy the admin.conf file and keep it under the corresponding environment directo
 ```
 scp root@your.server.external.ip:/etc/kubernetes/admin.conf environments/ENVIRONMENT_NAME/secret-admin.conf
 ```
+
+Continue with creating a new environment section above.
+
+
+## Join a cluster
+
+To add a node to the cluster - follow the steps in creating a new master node, but instead of `kubeadm init`, run the `kubeadm join` command you kept from the output of the init command.
 
 
 ## Add monitoring using heapster
