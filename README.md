@@ -3,12 +3,21 @@
 Documentation and code to help using Kamatera cloud for running Kubernetes workloads.
 
 
-## Connecting to an existing environment
+## Prerequisites
 
-Assuming there is an existing cluster and corresponding environment under `environments` directory:
+Installing dependencies on Ubuntu:
 
 ```
-source switch_environment.sh testing
+sudo apt-get install -y bash jq sshpass openssh-client python2.7
+```
+
+
+## Using an existing environment
+
+Assuming there is an existing cluster and corresponding environment configuration files and secrets under `environments/ENVIRONMENT_NAME` directory:
+
+```
+./kamatera.sh cluster shell <ENVIRONMENT_NAME>
 ```
 
 Verify you are connected to the cluster:
@@ -26,7 +35,7 @@ kubectl describe node <TAB><TAB>
 
 ## Deployment
 
-Make sure helm and tiller are installed and latest version (locally and on the cluster):
+Make sure helm and tiller are installed:
 
 ```
 kubectl apply -f helm-tiller-rbac-config.yaml
@@ -45,85 +54,43 @@ Depending on the changes you might need to add arguments to helm upgrade, refer 
 * To force deployment at cost of down-time: `--force --recreate-pods`
 
 
-## Create a Kubernetes master node
-
-This procedure creates a node that and sets it up to serve as master or node or both
-
-* Log-in to [Kamatera Console](https://console.kamatera.com/)
-* Sign up and setup billing
-* Create a new server with the following configuration:
-  * Ubuntu Server 16.04 64bit
-  * CPU = master node should have at least 2 cores, depending on workload
-  * RAM = master node should have at least 4GB
-  * SSD Disk = master node should have at least 50GB
-
-SSH to your server with the password you specified during server setup
+## Create a new cluster
 
 ```
-ssh root@your.server.external.ip
+./kamatera.sh cluster create <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
 ```
 
-Following commands should run from the server to setup kube-adm which is then used to setup and manage the cluster:
+* **ENVIRONMENT_NAME** - a unique name to identify your cluster, e.g. `testing` / `production`
+* **CPU** - should be at least `2B` = 2 cores
+* **RAM** - should be at least `2048` = 2GB
+* **DISK_SIZE** - in GB
+
+See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
+
+When the cluster is created you should have the cluster configuration available under `environments/ENVIRONMENT_NAME/`
+
+Get the list of nodes from kubectl
 
 ```
-swapoff -a
-echo "127.0.0.1 `hostname`" >> /etc/hosts
-apt-get update
-apt-get install -y docker.io apt-transport-https
-curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-cat << EOF > /etc/apt/sources.list.d/kubernetes.list
-deb http://apt.kubernetes.io/ kubernetes-xenial main
-EOF
-apt-get update
-apt-get install -y kubelet kubeadm kubectl
-cat << EOF > /etc/docker/daemon.json
-{
-  "exec-opts": ["native.cgroupdriver=cgroupfs"]
-}
-EOF
-sysctl net.bridge.bridge-nf-call-iptables=1
-systemctl restart docker
-systemctl restart kubelet
+./kamatera.sh cluster shell <ENVIRONMENT_NAME> kubectl get nodes
 ```
 
-Create the master node:
+You should see a single node, the node name matches the kamatera server name.
+
+
+## Add a node to the cluster
 
 ```
-kubeadm init --pod-network-cidr=10.244.0.0/16
+./kamatera.sh cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
 ```
 
-Keep the kubeadm join command from the output, you can need it to join nodes to the cluster.
+* **ENVIRONMENT_NAME** - name of an existing environment (which has all required files under `environments/ENVIRONMENT_NAME/`)
+* **CPU**, **RAM**, **DISK_SIZE** - same as cluster create, you can add nodes with different settings
 
-Install networking on the master node (should be done once per cluster):
-
-```
-export KUBECONFIG=/etc/kubernetes/admin.conf
-kubectl apply -f https://raw.githubusercontent.com/projectcalico/canal/master/k8s-install/1.7/rbac.yaml
-kubectl apply -f https://raw.githubusercontent.com/projectcalico/canal/master/k8s-install/1.7/canal.yaml
-```
-
-When creating the cluster for the first time it might take a few minutes for everything to start, you just need to wait
+Get the list of nodes, it might take a minute for the node to be in Running state
 
 ```
-while ! kubectl get pods --all-namespaces | tee /dev/stderr | grep kube-dns- | grep Running; do echo "."; sleep 1; done
-```
-
-(Optional) Allow to schedule workloads on the master node
-
-```
-kubectl taint nodes --all node-role.kubernetes.io/master-
-```
-
-Exit the server
-
-```
-exit
-```
-
-Copy the admin.conf file and keep it under the corresponding environment directory -
-
-```
-scp root@your.server.external.ip:/etc/kubernetes/admin.conf environments/ENVIRONMENT_NAME/secret-admin.conf
+./kamatera.sh cluster shell <ENVIRONMENT_NAME> kubectl get nodes
 ```
 
 
@@ -132,11 +99,6 @@ scp root@your.server.external.ip:/etc/kubernetes/admin.conf environments/ENVIRON
 Assuming you have an existing cluster you can use and you have the `secret-admin.conf` file for authentication to that cluster.
 
 You can copy another environment (under the `environments` directory) and modify the values, specifically, the `.env` file has the connection details and the `secret-admin.conf` file has the authentication secrets.
-
-
-## Join a cluster
-
-To add a node to the cluster - follow the steps in creating a new master node, but instead of `kubeadm init`, run the `kubeadm join` command you kept from the output of the init command.
 
 
 ## Installing the load balancer to allow secure external access to the cluster
