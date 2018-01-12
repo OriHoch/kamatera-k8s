@@ -11,6 +11,12 @@ Installing dependencies on Ubuntu:
 sudo apt-get install -y bash jq sshpass openssh-client python2.7
 ```
 
+Login with your Kamatera API token
+
+```
+./kamatera.sh auth login
+```
+
 
 ## Using an existing environment
 
