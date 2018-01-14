@@ -2,28 +2,94 @@
 
 Documentation and code to help using Kamatera cloud for running Kubernetes workloads.
 
+[![Build Status](https://travis-ci.org/OriHoch/kamatera-k8s.svg?branch=master)](https://travis-ci.org/OriHoch/kamatera-k8s)
+
 
 ## Prerequisites
 
-Installing dependencies on Ubuntu:
+* Recent version of [Docker](https://docs.docker.com/engine/installation/)
+* An existing project you want to deploy to the Kamatera Kubernetes Cloud
+* Kamatera API clientId and secret token
+
+
+## Running the Kamatera CLI
+
+All kamatera CLI commands should run from a project directory.
+
+The CLI reads and stores configuration to the current working directory.
+
+
+## Create a new cluster
+
+Login to Kamatera (will ask for your clientId and secret)
 
 ```
-sudo apt-get install -y bash jq sshpass openssh-client python2.7
+docker run -itv `pwd`:/pwd orihoch/kamatera-cli auth login
 ```
 
-Login with your Kamatera API token
+Create a cluster
 
 ```
-./kamatera.sh auth login
+docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster create <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
 ```
+
+* **ENVIRONMENT_NAME** - a unique name to identify your cluster, e.g. `testing` / `production`
+* **CPU** - should be at least `2B` = 2 cores
+* **RAM** - should be at least `2048` = 2GB
+* **DISK_SIZE** - in GB
+
+See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
+
+When the cluster is created you should have the cluster configuration available under `environments/ENVIRONMENT_NAME/`
+
+
+## Run a local shell session connected to the cluster
+
+```
+docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME>
+```
+
+You can also run a one-off command, for example, to get the list of nodes from kubectl:
+
+```
+docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME> kubectl get nodes
+```
+
+You should see a single node, the node name matches the kamatera server name.
+
+
+## Add a node to the cluster
+
+```
+docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
+```
+
+* **ENVIRONMENT_NAME** - name of an existing environment (which has all required files under `environments/ENVIRONMENT_NAME/`)
+* **CPU**, **RAM**, **DISK_SIZE** - same as cluster create, you can add nodes with different settings
+
+Get the list of nodes, it might take a minute for the node to be in Running state
+
+```
+docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME> kubectl get nodes
+```
+
+
+## Creating a new environment
+
+Assuming you have an existing cluster you can use and you have the `secret-admin.conf` file for authentication to that cluster.
+
+You can copy another environment (under the `environments` directory) and modify the values, specifically, the `.env` file has the connection details and the `secret-admin.conf` file has the authentication secrets.
+
 
 
 ## Using an existing environment
 
-Assuming there is an existing cluster and corresponding environment configuration files and secrets under `environments/ENVIRONMENT_NAME` directory:
+Assuming there is an existing cluster and corresponding environment configuration files and secrets in the current project under `environments/ENVIRONMENT_NAME` directory.
+
+Start a shell session:
 
 ```
-./kamatera.sh cluster shell <ENVIRONMENT_NAME>
+docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME>
 ```
 
 Verify you are connected to the cluster:
@@ -44,67 +110,24 @@ kubectl describe node <TAB><TAB>
 Make sure helm and tiller are installed:
 
 ```
-kubectl apply -f helm-tiller-rbac-config.yaml
-helm init --service-account tiller --upgrade
+docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME> "
+    kubectl apply -f helm-tiller-rbac-config.yaml &&
+    helm init --service-account tiller --upgrade
+"
 ```
 
 Deploy
 
 ```
-./helm_upgrade.sh
+docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME> "
+    ./helm_upgrade.sh
+"
 ```
 
 Depending on the changes you might need to add arguments to helm upgrade, refer to the Helm documentation for details.
 
 * On first installation you should add `--install`
 * To force deployment at cost of down-time: `--force --recreate-pods`
-
-
-## Create a new cluster
-
-```
-./kamatera.sh cluster create <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
-```
-
-* **ENVIRONMENT_NAME** - a unique name to identify your cluster, e.g. `testing` / `production`
-* **CPU** - should be at least `2B` = 2 cores
-* **RAM** - should be at least `2048` = 2GB
-* **DISK_SIZE** - in GB
-
-See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
-
-When the cluster is created you should have the cluster configuration available under `environments/ENVIRONMENT_NAME/`
-
-Get the list of nodes from kubectl
-
-```
-./kamatera.sh cluster shell <ENVIRONMENT_NAME> kubectl get nodes
-```
-
-You should see a single node, the node name matches the kamatera server name.
-
-
-## Add a node to the cluster
-
-```
-./kamatera.sh cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
-```
-
-* **ENVIRONMENT_NAME** - name of an existing environment (which has all required files under `environments/ENVIRONMENT_NAME/`)
-* **CPU**, **RAM**, **DISK_SIZE** - same as cluster create, you can add nodes with different settings
-
-Get the list of nodes, it might take a minute for the node to be in Running state
-
-```
-./kamatera.sh cluster shell <ENVIRONMENT_NAME> kubectl get nodes
-```
-
-
-## Creating a new environment
-
-Assuming you have an existing cluster you can use and you have the `secret-admin.conf` file for authentication to that cluster.
-
-You can copy another environment (under the `environments` directory) and modify the values, specifically, the `.env` file has the connection details and the `secret-admin.conf` file has the authentication secrets.
 
 
 ## Installing the load balancer to allow secure external access to the cluster

@@ -1,11 +1,6 @@
 language: bash
 sudo: required
 env:
-  global:
-  - OPENSSL_CMD="openssl aes-256-cbc -K $encrypted_11bb5fe03766_key -iv $encrypted_11bb5fe03766_iv -in ./k8s-ops-secret.json.enc -out ./secret-k8s-ops.json -d"
-  -
-  - GCS_CLOUDSDK_CORE_PROJECT=uumpa-public
-  -
   matrix:
   - IMAGE_TAG=orihoch/kamatera-cli BUILD_PATH=. DEPLOY_BRANCH=master DEPLOY_ENVIRONMENT=_
 services:
@@ -23,9 +18,9 @@ script:
         false
       else
         docker pull "${IMAGE_TAG}"
-        if docker build --cache-from "${IMAGE_TAG}" -t "${IMAGE_TAG}" . &&\
+        if docker build --cache-from "${IMAGE_TAG}" -t "${IMAGE_TAG}" -t "${IMAGE_TAG}:${TRAVIS_TAG:-$TRAVIS_COMMIT}" . &&\
            docker login -u "${DOCKER_USERNAME}" -p "${DOCKER_PASSWORD}" &&\
-           docker push "${IMAGE_TAG}"
+           docker push "${IMAGE_TAG}" && docker push "${IMAGE_TAG}:${TRAVIS_TAG:-$TRAVIS_COMMIT}"
         then
             true
         else

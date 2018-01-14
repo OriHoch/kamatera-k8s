@@ -25,8 +25,6 @@ kamatera_cluster_node_create() {
     DISK_SIZE_GB="${3}"
     SERVER_PATH="${4}"
     (
-        ! which sshpass && echo "missing sshpass" && exit 1
-        ! which jq && echo "missing jq" && exit 1
         password=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,20)))")
         kamatera_debug "password=${password}"
         echo "${password}" > "${SERVER_PATH}/password"
