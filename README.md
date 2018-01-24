@@ -18,7 +18,7 @@ All kamatera CLI commands should run from a project directory.
 
 The CLI reads and stores configuration to the current working directory.
 
-Install some required dependencies, following might work for Debian based systems:
+Install some basic dependencies, following might work for Debian based systems:
 
 ```
 sudo apt-get update
@@ -26,6 +26,16 @@ sudo apt-get install curl gcc python-dev python-setuptools apt-transport-https
                      lsb-release openssh-client git bash jq sshpass openssh-client
 sudo easy_install -U pip
 sudo pip install -U crcmod python-dotenv pyyaml
+```
+
+Install Kubectl, see [Kubectl Installation Docs](https://kubernetes.io/docs/tasks/tools/install-kubectl)
+
+Following might work on Debian based systems:
+
+```
+curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+chmod +x ./kubectl
+sudo mv ./kubectl /usr/local/bin/kubectl
 ```
 
 
