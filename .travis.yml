@@ -1,34 +1,8 @@
 language: bash
 sudo: required
-env:
-  matrix:
-  - IMAGE_TAG=orihoch/kamatera-cli BUILD_PATH=. DEPLOY_BRANCH=master DEPLOY_ENVIRONMENT=_
 services:
 - docker
 script:
 - |
-  if [ "${DEPLOY_ENVIRONMENT}" != "" ] && [ "${TRAVIS_PULL_REQUEST}" == "false" ] &&\
-     ([ "${TRAVIS_BRANCH}" == "${DEPLOY_BRANCH}" ] || ([ "${DEPLOY_TAGS}" == "true" ] && [ "${TRAVIS_TAG}" != "" ])) &&\
-     ! echo "${TRAVIS_COMMIT_MESSAGE}" | grep -- --no-deploy
-  then
-      if ([ -z "${DOCKER_USERNAME}" ] || [ -z "${DOCKER_PASSWORD}" ]); then
-        # travis env set DOCKER_USERNAME "" --private
-        # travis env set DOCKER_PASSWORD "" --private
-        echo "missing docker credentials"
-        false
-      else
-        docker pull "${IMAGE_TAG}"
-        if docker build --cache-from "${IMAGE_TAG}" -t "${IMAGE_TAG}" -t "${IMAGE_TAG}:${TRAVIS_TAG:-$TRAVIS_COMMIT}" . &&\
-           docker login -u "${DOCKER_USERNAME}" -p "${DOCKER_PASSWORD}" &&\
-           docker push "${IMAGE_TAG}" && docker push "${IMAGE_TAG}:${TRAVIS_TAG:-$TRAVIS_COMMIT}"
-        then
-            true
-        else
-          echo "Failed docker build / push"
-          false
-        fi
-      fi
-  else
-    echo "skipping deployment"
-    true
-  fi
+  openssl aes-256-cbc -K $encrypted_4fa8bbe6dd69_key -iv $encrypted_4fa8bbe6dd69_iv -in ./kamatera-secret.env.enc -out ./secret-kamatera.env -d &&\
+  tests/run_all.sh

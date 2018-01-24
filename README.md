@@ -18,19 +18,29 @@ All kamatera CLI commands should run from a project directory.
 
 The CLI reads and stores configuration to the current working directory.
 
+Install some required dependencies, following might work for Debian based systems:
+
+```
+sudo apt-get update
+sudo apt-get install curl gcc python-dev python-setuptools apt-transport-https
+                     lsb-release openssh-client git bash jq sshpass openssh-client
+sudo easy_install -U pip
+sudo pip install -U crcmod python-dotenv pyyaml
+```
+
 
 ## Create a new cluster
 
 Login to Kamatera (will ask for your clientId and secret)
 
 ```
-docker run -itv `pwd`:/pwd orihoch/kamatera-cli auth login
+./kamatera.sh auth login
 ```
 
 Create a cluster
 
 ```
-docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster create <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
+./kamatera.sh cluster create <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
 ```
 
 * **ENVIRONMENT_NAME** - a unique name to identify your cluster, e.g. `testing` / `production`
@@ -46,13 +56,13 @@ When the cluster is created you should have the cluster configuration available 
 ## Run a local shell session connected to the cluster
 
 ```
-docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME>
+./kamatera.sh cluster shell <ENVIRONMENT_NAME>
 ```
 
 You can also run a one-off command, for example, to get the list of nodes from kubectl:
 
 ```
-docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME> kubectl get nodes
+./kamatera.sh cluster shell <ENVIRONMENT_NAME> kubectl get nodes
 ```
 
 You should see a single node, the node name matches the kamatera server name.
@@ -61,16 +71,16 @@ You should see a single node, the node name matches the kamatera server name.
 ## Add a node to the cluster
 
 ```
-docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
+./kamatera.sh cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
 ```
 
 * **ENVIRONMENT_NAME** - name of an existing environment (which has all required files under `environments/ENVIRONMENT_NAME/`)
 * **CPU**, **RAM**, **DISK_SIZE** - same as cluster create, you can add nodes with different settings
 
-Get the list of nodes, it might take a minute for the node to be in Running state
+Get the list of nodes, it might take a minute for the node to be in Ready state
 
 ```
-docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME> kubectl get nodes
+./kamatera.sh cluster shell <ENVIRONMENT_NAME> kubectl get nodes
 ```
 
 
@@ -81,7 +91,6 @@ Assuming you have an existing cluster you can use and you have the `secret-admin
 You can copy another environment (under the `environments` directory) and modify the values, specifically, the `.env` file has the connection details and the `secret-admin.conf` file has the authentication secrets.
 
 
-
 ## Using an existing environment
 
 Assuming there is an existing cluster and corresponding environment configuration files and secrets in the current project under `environments/ENVIRONMENT_NAME` directory.
@@ -89,7 +98,7 @@ Assuming there is an existing cluster and corresponding environment configuratio
 Start a shell session:
 
 ```
-docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME>
+./kamatera.sh cluster shell <ENVIRONMENT_NAME>
 ```
 
 Verify you are connected to the cluster:
@@ -110,7 +119,7 @@ kubectl describe node <TAB><TAB>
 Make sure helm and tiller are installed:
 
 ```
-docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME> "
+./kamatera.sh cluster shell <ENVIRONMENT_NAME> "
     kubectl apply -f helm-tiller-rbac-config.yaml &&
     helm init --service-account tiller --upgrade
 "
@@ -119,7 +128,7 @@ docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME>
 Deploy
 
 ```
-docker run -itv `pwd`:/pwd orihoch/kamatera-cli cluster shell <ENVIRONMENT_NAME> "
+./kamatera.sh cluster shell <ENVIRONMENT_NAME> "
     ./helm_upgrade.sh
 "
 ```

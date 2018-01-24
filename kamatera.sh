@@ -42,8 +42,10 @@ kamatera_cluster_node_create() {
         echo "waiting for kamatera server create command to complete..."
         echo "you can track progress by running './kamatera.sh command info ${COMMAND_ID}' or in kamatera console web UI task queue"
         while true; do
-            sleep 5
+            sleep 60
             COMMAND_INFO_JSON=$(./kamatera.sh command info ${COMMAND_ID} 2>/dev/null)
+            printf "${COMMAND_INFO_JSON}"
+            echo
             STATUS=$(echo $COMMAND_INFO_JSON | jq -r .status)
             if [ "${STATUS}" == "complete" ]; then
                 echo "command completed successfully"
@@ -67,7 +69,8 @@ kamatera_cluster_node_create() {
         echo "waiting for ssh access to the server"
         export SSHPASS="${password}"
         while true; do
-            sleep 5
+            sleep 60
+            echo .
             if sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$SERVER_IP true; then
                 echo "ssh works!"
                 break
@@ -77,8 +80,8 @@ kamatera_cluster_node_create() {
         if ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$SERVER_IP -- "
             swapoff -a &&\
             echo "'"'"127.0.0.1 "'`'"hostname"'`'""'"'" >> /etc/hosts &&\
-            sleep 5 && apt-get update && sleep 10 &&\
-            apt-get install -y docker.io apt-transport-https &&\
+            while ! apt-get update; do sleep 5; done &&\
+            while ! apt-get install -y docker.io apt-transport-https; do sleep 5; done &&\
             curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - &&\
             echo 'deb http://apt.kubernetes.io/ kubernetes-xenial main' > /etc/apt/sources.list.d/kubernetes.list &&\
             sleep 5 && apt-get update && sleep 10 &&\
@@ -99,6 +102,7 @@ kamatera_cluster_node_create() {
 
 if [ "${1} ${2}" == "auth login" ]; then
     echo "Enter your kamatera API clientId and secret, they will be stored in `pwd`/secret-kamatera.env"
+    [ -e ./secret-kamatera.env ] && echo "WARNING! will overwrite existing secret-kamatera.env file, Press Ctrl+C to abort."
     read -p "clientID: " clientId
     read -p "secret: " secret
     echo "clientId=${clientId}" > "./secret-kamatera.env"
@@ -152,7 +156,7 @@ else
         sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$MAIN_SERVER_IP -- "
             export KUBECONFIG=/etc/kubernetes/admin.conf; \
             while ! kubectl get pods --all-namespaces | tee /dev/stderr | grep kube-dns- | grep Running; do
-                echo "."; sleep 10;
+                echo .; sleep 10;
             done
         "
         echo "updating environment values"
@@ -163,7 +167,7 @@ else
         echo
         echo "Start a local shell configured with kubectl, helm and shell completion, connected to the cluster:"
         echo
-        echo "./kamatera.sh cluster shell testing"
+        echo "./kamatera.sh cluster shell ${K8S_ENVIRONMENT_NAME}"
         echo
 
     elif [ "${1} ${2}" == "cluster shell" ]; then
