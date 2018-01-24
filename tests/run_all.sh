@@ -28,18 +28,18 @@ while ! [ $(./kamatera.sh cluster shell kamateratest1 "kubectl get nodes | tee /
 done
 
 echo "schedule a simple testing pod on the cluster"
-! kubectl run test --image=alpine -- sh -c "while true; do echo .; sleep 1; done" && exit 1
+! ./kamatera.sh cluster shell kubectl run test --image=alpine -- sh -c "while true; do echo .; sleep 1; done" && exit 1
 
 echo "waiting for pod"
-while ! [ $(kubectl get pods | tee /dev/stderr | grep test- | grep ' Running ' | wc -l) == "1" ]; do
+while ! [ $(./kamatera.sh cluster shell kubectl get pods | tee /dev/stderr | grep test- | grep ' Running ' | wc -l) == "1" ]; do
     echo .
     sleep 5
 done
 
-POD_NAME=$(kubectl get pods | grep test- | grep ' Running ' | cut -d" " -f1)
+POD_NAME=$(./kamatera.sh cluster shell kubectl get pods | grep test- | grep ' Running ' | cut -d" " -f1)
 echo "POD_NAME=$POD_NAME"
 sleep 2
-! [ $(kubectl logs --tail=1 $POD_NAME) == "." ] && echo "pod is not running or has an error" && exit 1
+! [ $(./kamatera.sh cluster shell kubectl logs --tail=1 $POD_NAME) == "." ] && echo "pod is not running or has an error" && exit 1
 
 echo
 echo "Great Success!"

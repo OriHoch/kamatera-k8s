@@ -24,11 +24,12 @@ kamatera_cluster_node_create() {
     RAM="${2}"
     DISK_SIZE_GB="${3}"
     SERVER_PATH="${4}"
+    NODE_PREFIX="${5}"
     (
         password=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,20)))")
         kamatera_debug "password=${password}"
         echo "${password}" > "${SERVER_PATH}/password"
-        name=$(python -c 'import uuid;print(str(uuid.uuid1()).replace("-",""))')
+        name="${NODE_PREFIX}-$(python -c 'import uuid;print(str(uuid.uuid1()).replace("-",""))')"
         kamatera_debug "name=${name}"
         echo "${name}" > "${SERVER_PATH}/name"
         params="datacenter=IL&name=${name}&password=${password}&cpu=${CPU}&ram=${RAM}&billing=hourly"
@@ -133,7 +134,7 @@ else
         mkdir -p environments/${K8S_ENVIRONMENT_NAME}
         printf "K8S_NAMESPACE=${K8S_ENVIRONMENT_NAME}\nK8S_HELM_RELEASE_NAME=kamatera\nK8S_ENVIRONMENT_NAME=${K8S_ENVIRONMENT_NAME}\n" > environments/${K8S_ENVIRONMENT_NAME}/.env
         MAIN_SERVER_PATH=$(mktemp -d)
-        ! kamatera_cluster_node_create "${CPU}" "${RAM}" "${DISK_SIZE_GB}" "${MAIN_SERVER_PATH}" && exit 1
+        ! kamatera_cluster_node_create "${CPU}" "${RAM}" "${DISK_SIZE_GB}" "${MAIN_SERVER_PATH}" "${K8S_ENVIRONMENT_NAME}-master" && exit 1
         MAIN_SERVER_IP=$(cat ${MAIN_SERVER_PATH}/ip)
         export SSHPASS=$(cat ${MAIN_SERVER_PATH}/password)
         cp "${MAIN_SERVER_PATH}/params" "environments/${K8S_ENVIRONMENT_NAME}/secret-main-server-params"
@@ -187,7 +188,7 @@ else
         ([ -z "${K8S_ENVIRONMENT_NAME}" ] || [ -z "${CPU}" ] || [ -z "${RAM}" ] || [ -z "${DISK_SIZE_GB}" ]) \
             && echo "usage:" && echo "./kamatera.sh cluster node add <K8S_ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE_GB>" && exit 1
         SERVER_PATH=$(mktemp -d)
-        ! kamatera_cluster_node_create "${CPU}" "${RAM}" "${DISK_SIZE_GB}" "${SERVER_PATH}" && exit 1
+        ! kamatera_cluster_node_create "${CPU}" "${RAM}" "${DISK_SIZE_GB}" "${SERVER_PATH}" "${K8S_ENVIRONMENT_NAME}-node" && exit 1
         SERVER_IP=$(cat ${SERVER_PATH}/ip)
         export SSHPASS=$(cat ${SERVER_PATH}/password)
         rm -rf "${SERVER_PATH}"
