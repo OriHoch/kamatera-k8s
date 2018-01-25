@@ -1,0 +1,9 @@
+global:
+  enableRootChart: true
+loadBalancer:
+  enabled: true
+  nginxServiceClusterIP: 10.98.145.163
+  nodeName: oritestlbb1151eb6011f11e88e10e4a4719186ba
+nginx:
+  enabled: true
+  htpasswdSecretName: nginx-htpasswd

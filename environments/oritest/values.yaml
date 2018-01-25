@@ -1,0 +1,7 @@
+loadBalancer:
+  redirectToHttps: true
+  enableHttps: true
+  letsEncrypt:
+    acmeEmail: ori@uumpa.com
+    dnsProvider: digitalocean
+    rootDomain: kamatera-oritest-lb.uumpa.net

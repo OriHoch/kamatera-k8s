@@ -8,7 +8,7 @@ script:
   [ "${TRAVIS_BRANCH}" == "master" ] && [ "${TRAVIS_PULL_REQUEST}" == "false" ] &&\
   ! echo "${TRAVIS_COMMIT_MESSAGE}" | grep -- --no-deploy &&\
   sudo apt-get update -qq &&\
-  sudo apt-get install -qqy curl gcc python-dev python-setuptools apt-transport-https \
+  sudo apt-get install -qqy curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
                             lsb-release openssh-client git bash jq sshpass openssh-client &&\
   sudo easy_install -U pip &&\
   sudo pip install -U crcmod python-dotenv pyyaml &&\

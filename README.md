@@ -7,7 +7,6 @@ Documentation and code to help using Kamatera cloud for running Kubernetes workl
 
 ## Prerequisites
 
-* Recent version of [Docker](https://docs.docker.com/engine/installation/)
 * An existing project you want to deploy to the Kamatera Kubernetes Cloud
 * Kamatera API clientId and secret token
 
@@ -22,7 +21,7 @@ Install some basic dependencies, following might work for Debian based systems:
 
 ```
 sudo apt-get update
-sudo apt-get install curl gcc python-dev python-setuptools apt-transport-https
+sudo apt-get install curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
                      lsb-release openssh-client git bash jq sshpass openssh-client
 sudo easy_install -U pip
 sudo pip install -U crcmod python-dotenv pyyaml

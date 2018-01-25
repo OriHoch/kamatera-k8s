@@ -59,6 +59,19 @@ test_cluster() {
     ! ./kamatera.sh cluster lb install ${TEST_ENVIRONMENT_NAME} "DO_AUTH_TOKEN=${DO_AUTH_TOKEN}" \
         && echo "failed to install the load balancer" && return 1
 
+    eval `cat environments/${TEST_ENVIRONMENT_NAME}/loadbalancer.env`
+
+    echo "updating DNS..."
+    curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer ${DO_AUTH_TOKEN}" \
+         -d '{"data":"'${IP}'"}' "https://api.digitalocean.com/v2/domains/${DO_DOMAIN_ROOT}/records/${DO_DOMAIN_RECORD_ID}"
+    sleep 10
+
+    echo "waiting for external access to the cluster..."
+    while ! curl -v "https://${DO_DOMAIN}/"; do
+        echo .
+        sleep 5
+    done
+
     echo
     echo "Great Success!"
     echo
@@ -73,7 +86,7 @@ terminate_cluster() {
     NODE=`./kamatera.sh server list | grep ${TEST_ENVIRONMENT_NAME}-node`
     LB=`./kamatera.sh server list | grep ${TEST_ENVIRONMENT_NAME}-lb`
     [ "${MASTER}" != "" ] && ./kamatera.sh server terminate $(echo $MASTER | cut -d" " -f2 -) $(echo $MASTER | cut -d" " -f1 -) yes
-    [ "${NODE}" != "" ] && ./kamatera.sh server terminate $(echo $MASTER | cut -d" " -f2 -) $(echo $MASTER | cut -d" " -f1 -) yes
+    [ "${NODE}" != "" ] && ./kamatera.sh server terminate $(echo $NODE | cut -d" " -f2 -) $(echo $NODE | cut -d" " -f1 -) yes
     [ "${LB}" != "" ] && ./kamatera.sh server terminate $(echo $LB | cut -d" " -f2 -) $(echo $LB | cut -d" " -f1 -) yes
     rm -rf environments/${TEST_ENVIRONMENT_NAME}
     return 0
