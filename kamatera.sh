@@ -347,9 +347,10 @@ else
             kubectl apply -f helm-tiller-rbac-config.yaml &&
             helm init --service-account tiller --upgrade
         " &&\
-        while ! [ $(./kamatera.sh cluster shell "${K8S_ENVIRONMENT_NAME}" kubectl get pods --namespace=kube-system | grep tiller-deploy- | grep ' Running ' | wc -l) == "1" ]; do echo .; sleep 1; done &&\
-        ./helm_upgrade.sh "${@:4}"
-        exit $?
+        while ! ./helm_upgrade.sh "${@:4}"; do
+            echo "helm upgrade failed, sleeping 10 seconds, then retrying"
+            sleep 10
+        done
 
     else
         echo "unknown command"

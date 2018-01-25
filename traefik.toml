@@ -1,0 +1,14 @@
+# https://docs.traefik.io/configuration/commons/
+
+defaultEntryPoints = ["http"]
+
+[entryPoints]
+[entryPoints.http]
+  address = ":80"
+
+[entrypoints.traefik]
+  address = ":3033"
+
+[api]
+  entryPoint = "traefik"
+  dashboard = true
