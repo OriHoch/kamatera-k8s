@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 
+source connect.sh
+
 usage() {
-    echo "Usage: ./helm_upgrade_external_chart.sh <EXTERNAL_CHART_NAME>"
+    echo "Usage: ./helm_upgrade_external_chart.sh <EXTERNAL_CHART_NAME> [HELM_UPGRADE_ARGS].."
 }
 
 CHART_NAME="${1}"
 
 [ -z "${CHART_NAME}" ] && usage && exit 1
 
-RELEASE_NAME="${CHART_NAME}-${K8S_ENVIRONMENT_NAME}"
+RELEASE_NAME="${K8S_HELM_RELEASE_NAME}-${CHART_NAME}-${K8S_ENVIRONMENT_NAME}"
 EXTERNAL_CHARTS_DIRECTORY="charts-external"
 CHART_DIRECTORY="${EXTERNAL_CHARTS_DIRECTORY}/${CHART_NAME}"
-
-source connect.sh
 
 echo "RELEASE_NAME=${RELEASE_NAME}"
 echo "CHART_DIRECTORY=${CHART_DIRECTORY}"
@@ -21,6 +21,9 @@ echo "CHART_DIRECTORY=${CHART_DIRECTORY}"
 
 TEMPDIR=`mktemp -d`
 echo '{}' > "${TEMPDIR}/values.yaml"
+
+! [ -e "environments/${K8S_ENVIRONMENT_NAME}/values.yaml" ] && touch "environments/${K8S_ENVIRONMENT_NAME}/values.yaml"
+! [ -e "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml" ] && touch "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
 
 for VALUES_FILE in values.yaml environments/${K8S_ENVIRONMENT_NAME}/values.yaml environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml
 do
@@ -36,19 +39,25 @@ do
 done
 
 VALUES=`cat "${TEMPDIR}/values.yaml"`
-CMD="helm upgrade -f ${TEMPDIR}/values.yaml ${RELEASE_NAME} ${CHART_DIRECTORY} ${@:2}"
-if ! helm upgrade -f "${TEMPDIR}/values.yaml" "${RELEASE_NAME}" "${CHART_DIRECTORY}" "${@:2}"; then
-    echo
-    echo "${TEMPDIR}/values.yaml"
-    echo "${VALUES}"
-    echo
-    echo "CMD"
-    echo "${CMD}"
-    echo
-    echo "helm upgrade failed"
-    exit 1
+
+if [ `./read_yaml.py "${TEMPDIR}/values.yaml" enabled` == "true" ]; then
+    CMD="helm upgrade -f ${TEMPDIR}/values.yaml ${RELEASE_NAME} ${CHART_DIRECTORY} ${@:2}"
+    if ! $CMD; then
+        echo
+        echo "${TEMPDIR}/values.yaml"
+        echo "${VALUES}"
+        echo
+        echo "CMD"
+        echo "${CMD}"
+        echo
+        echo "helm upgrade failed"
+        exit 1
+    else
+        rm -rf $TEMPDIR
+        echo "Great Success!"
+        exit 0
+    fi
 else
-    rm -rf $TEMPDIR
-    echo "Great Success!"
+    echo "chart is disabled, not performing upgrade"
     exit 0
 fi

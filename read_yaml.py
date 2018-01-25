@@ -12,6 +12,10 @@ def get_from_dict(values, keys):
     else:
         return values[keys[0]]
 
-
-print(json.dumps(get_from_dict(values, sys.argv[2:]), separators=(',', ':')))
-
+try:
+    print(json.dumps(get_from_dict(values, sys.argv[2:]), separators=(',', ':')))
+except Exception:
+    if os.environ.get("KAMATERA_DEBUG") == "1":
+        raise
+    else:
+        print('{}')

@@ -1,4 +1,4 @@
-{{ if .Values.traefik.enabled }}
+{{ if .Values.loadBalancer.enabled }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -13,7 +13,7 @@ spec:
       labels:
         app: traefik
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/traefik-conf.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/loadbalancer-conf.yaml") . | sha256sum }}
     spec:
       containers:
       - name: traefik-conf

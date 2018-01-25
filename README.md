@@ -126,62 +126,77 @@ kubectl describe node <TAB><TAB>
 
 ## Deployment
 
-Make sure helm and tiller are installed:
+Deploy the root helm chart and ensure the core required components are deployed
 
 ```
-./kamatera.sh cluster shell <ENVIRONMENT_NAME> "
-    kubectl apply -f helm-tiller-rbac-config.yaml &&
-    helm init --service-account tiller --upgrade
-"
+./kamatera.sh cluster deploy <ENVIRONMENT_NAME> [HELM_UPGRADE_ARGS]..
 ```
 
-Deploy
+Deploy an independent sub-chart (requires the root chart to be deployed successfully first)
 
 ```
-./kamatera.sh cluster shell <ENVIRONMENT_NAME> "
-    ./helm_upgrade.sh
-"
+./kamatera.sh cluster shell <ENVIRONMENT_NAME> ./helm_upgrade_external_chart.sh <CHART_NAME> [HELM_UPGRADE_ARGS]..
 ```
 
-Depending on the changes you might need to add arguments to helm upgrade, refer to the Helm documentation for details.
+All the helm charts and kubernetes templates are in the current working directory under `charts-external`, `charts` and `templates` directories.
+
+The helm values are in `values.yaml` files.
+
+Depending on the changes you might need to add arguments to helm upgrade
 
 * On first installation you should add `--install`
 * To force deployment at cost of down-time: `--force --recreate-pods`
+* For debugging: `--debug --dry-run`
+
+refer to the [Helm documentation](https://helm.sh/) for details.
 
 
-## Installing the load balancer to allow secure external access to the cluster
+## Installing a load balancer to allow secure external access to the cluster
 
-We use traefik to provide load balancing into the cluster from outisde of the internal network.
+Add the load balancer configuration to `environments/ENVIRONMNET_NAME/values.yaml`
 
-First, you should deploy the helm release which contains the traefik daemonset which allows to configure the traefik via helm values.
-
-Assuming the helm release is deployed, you need to just start the traefik docker container on each cluster node you wish to route external traffic to:
-
-```
-ssh root@cluster-node-ip docker run --name=traefik -d -p 80:80 -p 443:443 \
-                                    -v /etc/traefik:/etc-traefik -v /var/traefik-acme:/traefik-acme \
-                                    traefik --configFile=/etc-traefik/traefik.toml
-```
-
-If let's encrypt fails refer to the [traefik documentation](https://docs.traefik.io/configuration/acme/).
-
-If you want to run traefik for the same domain on more then one node, you should share the /var/traefik-acme directory between the nodes (e.g. via NFS shared folder)
-
-That's it, you can now set DNS to point to the node's IP
-
-You can create the following script to restart traefik in case of configuration changes:
+You can see where the values are used in `templates/loadbalancer.yaml` and `templates/loadbalancer-conf.yaml`
 
 ```
-echo "docker rm --force traefik; YOUR_TRAEFIK_DOCKER_RUN_COMMAND" > start_traefik.sh
-chmod +x start_traefik.sh
+loadBalancer:
+  redirectToHttps: true
+  enableHttps: true
+  letsEncrypt:
+    acmeEmail: your.email@some.domain.com
+    dnsProvider: cloudflare
+    rootDomain: your.domain.com
 ```
 
-The load balancer is configured via `templates/traefik-conf.yaml` file, you can edit that file and then deploy the helm release.
-
-This makes sure that /etc/traefik/traefik.toml file is available on the host for the load balancer to use.
-
-After you make changes run the start_traefik.sh script on the node
+Install the dedicated load balancer node, provide any required environment variables (optional)
 
 ```
-./start_traefik.sh
+./kamatera.sh cluster lb install <ENVIRONMENT_NAME> [OPTIONAL_ENVIRONMENT_VARS]
 ```
+
+For example, if using the cloudflare provider:
+
+```
+./kamatera.sh cluster lb install <ENVIRONMENT_NAME> "CLOUDFLARE_EMAIL=<EMAIL> CLOUDFLARE_API_KEY=<API_KEY>"
+```
+
+Check [this list](https://docs.traefik.io/configuration/acme/#provider) for the possible dns providers and required environment variables.
+
+Get the load balancer public IP to set DNS:
+
+```
+./kamatera.sh cluster lb info <ENVIRONMENT_NAME>
+```
+
+If you made any changes to the load balancer configuration you should update by re-running the install command without any additional arguments:
+
+```
+./kamatera.sh cluster lb install <ENVIRONMENT_NAME>
+```
+
+Traefik Web UI is not exposed publically by default, you can access it via a proxy
+
+```
+./kamatera.sh cluster lb web-ui <ENVIRONMENT_NAME>
+```
+
+Web UI is available at http://localhost:3033/

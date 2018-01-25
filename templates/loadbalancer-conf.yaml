@@ -1,0 +1,65 @@
+{{ if .Values.loadBalancer.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: traefik
+  namespace: kube-system
+data:
+  traefik.toml: |
+    # https://docs.traefik.io/configuration/commons/
+
+    # debug = true
+
+    defaultEntryPoints = ["http", "https"]
+
+    [entryPoints]
+      [entryPoints.http]
+        address = ":80"
+          {{ if .Values.loadBalancer.redirectToHttps }}
+          [entryPoints.http.redirect]
+            entryPoint = "https"
+          {{ end }}
+
+      {{ if .Values.loadBalancer.enableHttps }}
+      [entryPoints.https]
+        address = ":443"
+          [entryPoints.https.tls]
+      {{ end }}
+
+      [entrypoints.traefik]
+        address = ":3033"
+
+      [api]
+        entryPoint = "traefik"
+        dashboard = true
+
+    {{ if .Values.loadBalancer.letsEncrypt }}
+    [acme]
+    email = {{ .Values.loadBalancer.letsEncrypt.acmeEmail | quote }}
+    storage = "/traefik-acme/acme.json"
+    entryPoint = "https"
+
+      [acme.dnsChallenge]
+        # see https://docs.traefik.io/configuration/acme/#provider
+        provider = {{ .Values.loadBalancer.letsEncrypt.dnsProvider | quote }}
+
+    [[acme.domains]]
+      main = {{ .Values.loadBalancer.letsEncrypt.rootDomain | quote }}
+    {{ end }}
+
+    [file]
+
+    [backends]
+      {{ if .Values.nginx.enabled }}
+      [backends.nginx]
+        [backends.nginx.servers.server1]
+          url = "http://{{ .Values.loadBalancer.nginxServiceClusterIP }}:30080"
+      {{ end }}
+
+    {{ if .Values.nginx.enabled }}
+    [frontends]
+      [frontends.default]
+        backend="nginx"
+        passHostHeader = true
+    {{ end }}
+{{ end }}

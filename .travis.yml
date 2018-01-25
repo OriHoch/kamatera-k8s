@@ -5,6 +5,8 @@ services:
 - docker
 script:
 - |
+  [ "${TRAVIS_BRANCH}" == "master" ] && [ "${TRAVIS_PULL_REQUEST}" == "false" ] &&\
+  ! echo "${TRAVIS_COMMIT_MESSAGE}" | grep -- --no-deploy &&\
   sudo apt-get update -qq &&\
   sudo apt-get install -qqy curl gcc python-dev python-setuptools apt-transport-https \
                             lsb-release openssh-client git bash jq sshpass openssh-client &&\
