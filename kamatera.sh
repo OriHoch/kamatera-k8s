@@ -233,9 +233,11 @@ else
                 echo .
                 sleep 5
             done
-            NODE_ID=$(./kamatera.sh server list | grep "${K8S_ENVIRONMENT_NAME}-lb-" | cut -d" " -f1 - | cut -d"-" -f3 -)
+            SERVER_NAME=$(cat "${SERVER_PATH}/name")
+            NODE_ID=$(echo "${SERVER_NAME}" | cut -d" " -f1 - | cut -d"-" -f3 -)
             [ -z "${NODE_ID}" ] && echo "failed to get lb server node id" && exit 1
             echo "NODE_ID=${NODE_ID}" > "environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env"
+            echo "SERVER_NAME=${SERVER_NAME}" >> "environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env"
             echo "IP="$(cat ${SERVER_PATH}/ip) >> "environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env"
             export SSHPASS=$(cat ${SERVER_PATH}/password)
             echo "${SSHPASS}" > "environments/${K8S_ENVIRONMENT_NAME}/secret-loadbalancer-pass"
