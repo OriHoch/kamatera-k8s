@@ -25,8 +25,14 @@ kamatera_cluster_node_create() {
     DISK_SIZE_GB="${3}"
     SERVER_PATH="${4}"
     NODE_PREFIX="${5}"
+    SERVER_PASSWORD="${6}"
     (
-        password=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,20)))")
+        if [ -z "${SERVER_PASSWORD}" ]; then
+            password=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,20)))")
+        else
+            password="${SERVER_PASSWORD}"
+            echo "using server password from argument"
+        fi
         kamatera_debug "password=${password}"
         echo "${password}" > "${SERVER_PATH}/password"
         name="${NODE_PREFIX}-$(python -c 'import uuid;print(str(uuid.uuid1()).replace("-",""))')"
@@ -148,14 +154,14 @@ else
         kamatera_curl -X DELETE -d "confirm=1&force=1" "https://console.kamatera.com/service/server/${SERVER_ID}/terminate"
 
     elif [ "${1} ${2}" == "cluster create" ]; then
-        K8S_ENVIRONMENT_NAME="${3}"; CPU="${4}"; RAM="${5}"; DISK_SIZE_GB="${6}"
+        K8S_ENVIRONMENT_NAME="${3}"; CPU="${4}"; RAM="${5}"; DISK_SIZE_GB="${6}" MASTER_SERVER_PASSWORD="${7}"
         ([ -z "${K8S_ENVIRONMENT_NAME}" ] || [ -z "${CPU}" ] || [ -z "${RAM}" ] || [ -z "${DISK_SIZE_GB}" ]) \
-            && echo "usage:" && echo "./kamatera.sh cluster create <K8S_ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE_GB>" && exit 1
+            && echo "usage:" && echo "./kamatera.sh cluster create <K8S_ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE_GB> [MASTER_SERVER_PASSWORD]" && exit 1
         [ -e environments/${K8S_ENVIRONMENT_NAME} ] && echo "environment already exists, delete the environment directory or create a new environment" && exit 1
         mkdir -p environments/${K8S_ENVIRONMENT_NAME}
         printf "K8S_NAMESPACE=${K8S_ENVIRONMENT_NAME}\nK8S_HELM_RELEASE_NAME=kamatera\nK8S_ENVIRONMENT_NAME=${K8S_ENVIRONMENT_NAME}\n" > environments/${K8S_ENVIRONMENT_NAME}/.env
         MAIN_SERVER_PATH=$(mktemp -d)
-        ! kamatera_cluster_node_create "${CPU}" "${RAM}" "${DISK_SIZE_GB}" "${MAIN_SERVER_PATH}" "${K8S_ENVIRONMENT_NAME}-master" && exit 1
+        ! kamatera_cluster_node_create "${CPU}" "${RAM}" "${DISK_SIZE_GB}" "${MAIN_SERVER_PATH}" "${K8S_ENVIRONMENT_NAME}-master" "${MASTER_SERVER_PASSWORD}" && exit 1
         MAIN_SERVER_IP=$(cat ${MAIN_SERVER_PATH}/ip)
         export SSHPASS=$(cat ${MAIN_SERVER_PATH}/password)
         cp "${MAIN_SERVER_PATH}/params" "environments/${K8S_ENVIRONMENT_NAME}/secret-main-server-params"
@@ -205,11 +211,11 @@ else
         fi
 
     elif [ "${1} ${2} ${3}" == "cluster node add" ]; then
-        K8S_ENVIRONMENT_NAME="${4}"; CPU="${5}"; RAM="${6}"; DISK_SIZE_GB="${7}"; NODE_PREFIX="${8}"; SERVER_PATH="${9}"
+        K8S_ENVIRONMENT_NAME="${4}"; CPU="${5}"; RAM="${6}"; DISK_SIZE_GB="${7}"; NODE_PREFIX="${8}"; SERVER_PATH="${9}" SERVER_PASSWORD="${10}"
         ([ -z "${K8S_ENVIRONMENT_NAME}" ] || [ -z "${CPU}" ] || [ -z "${RAM}" ] || [ -z "${DISK_SIZE_GB}" ]) \
             && echo "usage:" && echo "./kamatera.sh cluster node add <K8S_ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE_GB>" && exit 1
         [ -z "${SERVER_PATH}" ] && SERVER_PATH=$(mktemp -d)
-        ! kamatera_cluster_node_create "${CPU}" "${RAM}" "${DISK_SIZE_GB}" "${SERVER_PATH}" "${K8S_ENVIRONMENT_NAME}-${NODE_PREFIX:-node}" && exit 1
+        ! kamatera_cluster_node_create "${CPU}" "${RAM}" "${DISK_SIZE_GB}" "${SERVER_PATH}" "${K8S_ENVIRONMENT_NAME}-${NODE_PREFIX:-node}" "${SERVER_PASSWORD}" && exit 1
         SERVER_IP=$(cat ${SERVER_PATH}/ip)
         export SSHPASS=$(cat ${SERVER_PATH}/password)
         [ -z "${9}" ] && rm -rf "${SERVER_PATH}"
@@ -224,11 +230,12 @@ else
     elif [ "${1} ${2} ${3}" == "cluster lb install" ]; then
         K8S_ENVIRONMENT_NAME="${4}"
         ENV_CONFIG="${5}"
+        SERVER_PASSWORD="${6}"
         [ -z "${K8S_ENVIRONMENT_NAME}" ] && echo "missing K8S_ENVIRONMENT_NAME" && exit 1
         if ! [ -e "environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env" ]; then
             echo "adding load balancer node"
             SERVER_PATH=$(mktemp -d)
-            ! ./kamatera.sh cluster node add "${K8S_ENVIRONMENT_NAME}" 1B 1024 5 "lb" "${SERVER_PATH}" && echo "failed to add lb node" && exit 1
+            ! ./kamatera.sh cluster node add "${K8S_ENVIRONMENT_NAME}" 1B 1024 5 "lb" "${SERVER_PATH}" "${SERVER_PASSWORD}" && echo "failed to add lb node" && exit 1
             while ! ./kamatera.sh cluster shell "${K8S_ENVIRONMENT_NAME}" "kubectl get nodes | tee /dev/stderr | grep ' Ready ' | grep ${K8S_ENVIRONMENT_NAME}lb"; do
                 echo .
                 sleep 5
@@ -352,9 +359,9 @@ else
         K8S_ENVIRONMENT_NAME="${3}"
         [ -z "${K8S_ENVIRONMENT_NAME}" ] && echo "missing K8S_ENVIRONMENT_NAME" && exit 1
         ./kamatera.sh cluster shell "${K8S_ENVIRONMENT_NAME}" "
-            kubectl apply -f helm-tiller-rbac-config.yaml &&
-            helm init --service-account tiller --upgrade --history-max 2
-        " &&\
+            kubectl apply -f helm-tiller-rbac-config.yaml;
+            helm init --service-account tiller --upgrade --force-upgrade --wait --history-max 2
+        ";
         while ! ./helm_upgrade.sh "${@:4}"; do
             echo "helm upgrade failed, sleeping 10 seconds, then retrying"
             sleep 10
