@@ -24,6 +24,8 @@ spec:
         # update the pod on nginx-conf changes
         checksum/config: {{ include (print $.Template.BasePath "/nginx-conf.yaml") . | sha256sum }}
     spec:
+      nodeSelector:
+        kamateralb: "true"
       containers:
       - name: nginx
         image: nginx:alpine

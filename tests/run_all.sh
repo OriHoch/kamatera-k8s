@@ -67,10 +67,8 @@ test_cluster() {
     sleep 10
 
     echo "waiting for external access to the cluster..."
-    while ! curl -v "https://${DO_DOMAIN}/"; do
-        echo .
-        sleep 5
-    done
+    sleep 60
+    ! curl -v "https://${DO_DOMAIN}/" && return 1
 
     echo
     echo "Great Success!"

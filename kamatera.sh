@@ -239,6 +239,7 @@ else
             echo "NODE_ID=${NODE_ID}" > "environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env"
             echo "SERVER_NAME=${SERVER_NAME}" >> "environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env"
             echo "IP="$(cat ${SERVER_PATH}/ip) >> "environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env"
+            cat "environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env"
             export SSHPASS=$(cat ${SERVER_PATH}/password)
             echo "${SSHPASS}" > "environments/${K8S_ENVIRONMENT_NAME}/secret-loadbalancer-pass"
             cp "${SERVER_PATH}/params" "environments/${K8S_ENVIRONMENT_NAME}/secret-loadbalancer-params"
@@ -246,21 +247,10 @@ else
             echo "setting kubernetes node label to identify as load balancer"
             kubectl label node "${K8S_ENVIRONMENT_NAME}lb${NODE_ID}" kamateralb=true
             eval `cat environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env`
-            sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "mkdir -p /etc/traefik"
-            sshpass -e scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ./traefik.toml root@$IP:/etc/traefik/traefik.toml
-            if ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "
-                docker run --name=traefik -d -p 80:80 -p 443:443 -p 3033:3033 \
-                                          -v /etc/traefik:/etc-traefik -v /var/traefik-acme:/traefik-acme \
-                                          traefik --configFile=/etc-traefik/traefik.toml
-            "; then
-                echo "Failed to install load balancer"
-                exit 1
-            fi
-            while ! [ $(sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "docker inspect traefik" | jq -r '.[0].State.Status') == "running" ]; do
-                echo .
-                sleep 2
-            done
-            ./update_yaml.py '{"global":{"enableRootChart":true},"loadBalancer":{"enabled":true,"nodeName":"'"${K8S_ENVIRONMENT_NAME}lb${NODE_ID}"'"},"nginx":{"enabled":true}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+            echo "setting up node for traefik..."
+            sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "mkdir -p /etc/traefik; docker pull traefik"
+            ./update_yaml.py '{"global":{"enableRootChart":true},"loadBalancer":{"enabled":true,"nodeName":"'"${K8S_ENVIRONMENT_NAME}lb${NODE_ID}"'"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+            echo "deploying to enable root chart and load balancer..."
             ! ./kamatera.sh cluster deploy "${K8S_ENVIRONMENT_NAME}" --install \
                 && echo "failed to deploy root chart" && exit 1
             sleep 5
@@ -270,38 +260,44 @@ else
             eval `cat environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env`
             export SSHPASS=$(cat "environments/${K8S_ENVIRONMENT_NAME}/secret-loadbalancer-pass")
         fi
-        while ! ./kamatera.sh cluster shell "${K8S_ENVIRONMENT_NAME}" kubectl get service | tee /dev/stderr | grep 'nginx ' >/dev/null; do
-            echo .
-            sleep 2
-        done
-        if ! ./kamatera.sh cluster shell "${K8S_ENVIRONMENT_NAME}" kubectl describe secret nginx-htpasswd; then
-            echo "create auth secrets..."
-            password=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,20)))")
-            ! [ -e environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd ] &&\
-                htpasswd -bc environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd superadmin "${password}"
-            kubectl create secret generic nginx-htpasswd --from-file=environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd
-            echo
-            echo "http auth credentials"
-            echo
-            echo "username = superadmin"
-            echo "password = ${password}"
-            echo
-            echo "the credentials cannot be retrieved later"
-            echo
+        if [ $(./read_yaml.py environments/kamateratest1/values.auto-updated.yaml nginx enabled) != "true" ]; then
+            if ! ./kamatera.sh cluster shell "${K8S_ENVIRONMENT_NAME}" kubectl describe secret nginx-htpasswd; then
+                echo "create nginx http auth secrets..."
+                password=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,20)))")
+                ! [ -e environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd ] &&\
+                    htpasswd -bc environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd superadmin "${password}"
+                ./kamatera.sh cluster shell "${K8S_ENVIRONMENT_NAME}" kubectl create secret generic nginx-htpasswd --from-file=environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd
+                echo
+                echo "http auth credentials"
+                echo
+                echo "username = superadmin"
+                echo "password = ${password}"
+                echo
+                echo "the credentials cannot be retrieved later"
+                echo
+            fi
+            echo "enabling and deploying nginx..."
+            ./update_yaml.py '{"nginx":{"enabled":true,"htpasswdSecretName":"nginx-htpasswd"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+            ./kamatera.sh cluster deploy "${K8S_ENVIRONMENT_NAME}"
+            echo "getting nginx service ip..."
+            while true; do
+                NGINX_SERVICE_IP=$(echo $(./kamatera.sh cluster shell "${K8S_ENVIRONMENT_NAME}" "kubectl describe service nginx | grep 'IP:' | cut -d"'" "'" -f2-"))
+                ! [ -z "${NGINX_SERVICE_IP}" ] && break
+                sleep 10
+            done
+            echo "updating nginx service ip (${NGINX_SERVICE_IP}) in load balancer..."
+            ./update_yaml.py '{"loadBalancer":{"nginxServiceClusterIP":"'${NGINX_SERVICE_IP}'"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
         fi
-        NGINX_SERVICE_IP=$(echo $(kubectl describe service nginx | grep 'IP:' | cut -d" " -f2-))
-        echo "updating internal nginx cluster ip: ${NGINX_SERVICE_IP}"
-        ./update_yaml.py '{"loadBalancer":{"nginxServiceClusterIP":"'${NGINX_SERVICE_IP}'"},"nginx":{"htpasswdSecretName":"nginx-htpasswd"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
-        echo "deploying root chart..."
-        ! ./kamatera.sh cluster deploy "${K8S_ENVIRONMENT_NAME}" >/dev/null 2>&1 && echo "failed to deploy root chart" && exit 1
         if ! [ -z "${ENV_CONFIG}" ]; then
             echo "setting traefik environment variables..."
             ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "
                 for VAR in "'$(echo "'"${ENV_CONFIG}"'")'"; do echo "'"${VAR}"'"; done > /traefik.env;
             " && echo "failed to set traefik env vars" && exit 1
         fi
+        echo "deploying to apply any cluster configuration changes..."
+        ./kamatera.sh cluster deploy "${K8S_ENVIRONMENT_NAME}"
         echo "reloading traefik..."
-        sleep 5
+        sleep 15
         ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "
             docker rm --force traefik;
             ! [ -e /traefik.env ] && touch /traefik.env;
@@ -318,7 +314,7 @@ else
         [ "$?" != "0" ] && echo "failed to verify installation of existing load balancer node" && exit 1
         echo Id=$(printf "${TRAEFIK_JSON}" | jq '.[0].Id')
         printf "${TRAEFIK_JSON}" | jq '.[0].State'
-        ROOT_DOMAIN=$(./read_yaml.py environments/${K8S_ENVIRONMENT_NAME}/values.yaml loadBalancer letsEncrypt rootDomain)
+        ROOT_DOMAIN=`eval echo $(./read_yaml.py environments/${K8S_ENVIRONMENT_NAME}/values.yaml loadBalancer letsEncrypt rootDomain)`
         echo "load balancer was installed and updated successfully"
         echo "Public IP: ${IP}"
         ! [ -z "${ROOT_DOMAIN}" ] && echo "Root Domain: ${ROOT_DOMAIN}"
@@ -339,15 +335,25 @@ else
         [ -z "${K8S_ENVIRONMENT_NAME}" ] && echo "missing K8S_ENVIRONMENT_NAME" && exit 1
         export SSHPASS=$(cat "environments/${K8S_ENVIRONMENT_NAME}/secret-loadbalancer-pass")
         eval `cat environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env`
-        sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP docker logs traefik
+        sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "docker logs traefik"
+        ROOT_DOMAIN=`eval echo $(./read_yaml.py environments/${K8S_ENVIRONMENT_NAME}/values.yaml loadBalancer letsEncrypt rootDomain)`
         echo "Load Balancer Public IP: ${IP}"
+        ! [ -z "${ROOT_DOMAIN}" ] && echo "Root Domain: $(echo ${ROOT_DOMAIN})"
+        ! [ -z "${ROOT_DOMAIN}" ] && echo "Kubernetes Dashboard: https://$(echo ${ROOT_DOMAIN})/dashboard/"
+
+    elif [ "${1} ${2} ${3}" == "cluster lb ssh" ]; then
+        K8S_ENVIRONMENT_NAME="${4}"
+        [ -z "${K8S_ENVIRONMENT_NAME}" ] && echo "missing K8S_ENVIRONMENT_NAME" && exit 1
+        export SSHPASS=$(cat "environments/${K8S_ENVIRONMENT_NAME}/secret-loadbalancer-pass")
+        eval `cat environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env`
+        sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP
 
     elif [ "${1} ${2}" == "cluster deploy" ]; then
         K8S_ENVIRONMENT_NAME="${3}"
         [ -z "${K8S_ENVIRONMENT_NAME}" ] && echo "missing K8S_ENVIRONMENT_NAME" && exit 1
         ./kamatera.sh cluster shell "${K8S_ENVIRONMENT_NAME}" "
             kubectl apply -f helm-tiller-rbac-config.yaml &&
-            helm init --service-account tiller --upgrade
+            helm init --service-account tiller --upgrade --history-max 2
         " &&\
         while ! ./helm_upgrade.sh "${@:4}"; do
             echo "helm upgrade failed, sleeping 10 seconds, then retrying"
