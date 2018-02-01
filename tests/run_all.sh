@@ -10,7 +10,7 @@ test_cluster() {
     echo "Creating environment ${TEST_ENVIRONMENT_NAME}"
     echo
 
-    ! ./kamatera.sh cluster create ${TEST_ENVIRONMENT_NAME} 2B 2048 30 "${MASTER_SERVER_PASSWORD}" \
+    ! ./kamatera.sh cluster create ${TEST_ENVIRONMENT_NAME} "" "" "" "" "${MASTER_SERVER_PASSWORD}" \
         && echo "failed to create cluster" && return 1
 
     while ! ./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} "kubectl get nodes | grep ' Ready '"; do
@@ -19,11 +19,11 @@ test_cluster() {
     done
 
     echo
-    echo "Adding node to the cluster"
+    echo "Adding worker node to the cluster"
     echo
 
-    ! ./kamatera.sh cluster node add ${TEST_ENVIRONMENT_NAME} 2B 2048 30 "" "" "${NODE_SERVER_PASSWORD}" \
-        && echo "failed to add node" && return 1
+    ! ./kamatera.sh cluster node add ${TEST_ENVIRONMENT_NAME} "2B" "2048" "30" "" "${NODE_SERVER_PASSWORD}" \
+        && echo "failed to add worker node" && return 1
 
     echo "waiting for node to be added to the cluster"
     while ! [ $(./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} "kubectl get nodes | tee /dev/stderr | grep ' Ready ' | wc -l") == "2" ]; do
@@ -45,6 +45,10 @@ test_cluster() {
     sleep 2
     ! [ $(./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} kubectl logs --tail=1 $POD_NAME) == "." ] && echo "pod is not running or has an error" && return 1
 
+    echo "installing storage node"
+
+    ! ./kamatera.sh cluster storage install ${TEST_ENVIRONMENT_NAME} 30 && echo "failed to install storage" && return 1
+
     echo "installing the load balancer"
 
     echo "loadBalancer:
@@ -56,7 +60,7 @@ test_cluster() {
     rootDomain: ${DO_DOMAIN}
 " > environments/${TEST_ENVIRONMENT_NAME}/values.yaml
 
-    ! ./kamatera.sh cluster lb install ${TEST_ENVIRONMENT_NAME} "DO_AUTH_TOKEN=${DO_AUTH_TOKEN}" "${LB_SERVER_PASSWORD}" \
+    ! ./kamatera.sh cluster loadbalancer install ${TEST_ENVIRONMENT_NAME} "DO_AUTH_TOKEN=${DO_AUTH_TOKEN}" "${LB_SERVER_PASSWORD}" \
         && echo "failed to install the load balancer" && return 1
 
     eval `cat environments/${TEST_ENVIRONMENT_NAME}/loadbalancer.env`

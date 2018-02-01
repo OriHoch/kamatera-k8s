@@ -42,86 +42,66 @@ Login with your Kamatera clientId and secret
 ## Create a new cluster
 
 ```
-./kamatera.sh cluster create <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
+./kamatera.sh cluster create <ENVIRONMENT_NAME>
 ```
 
 * **ENVIRONMENT_NAME** - a unique name to identify your cluster, e.g. `testing` / `production`
-* **CPU** - should be at least `2B` = 2 cores
-* **RAM** - should be at least `2048` = 2GB
-* **DISK_SIZE** - in GB
-
-See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
 
 When the cluster is created you should have the cluster configuration available under `environments/ENVIRONMENT_NAME/`
 
 
-## Add a worker node
+## Add persistent storage
 
-By default the master node cannot receive workloads, you should add nodes depending on your requirements -
+Add a persistent storage node
+
+```
+./kamatera.sh cluster storage install <ENVIRONMENT_NAME> <DISK_SIZE_GB>
+```
+
+
+## Add a load balancer
+
+```
+./kamatera.sh cluster loadbalancer install <ENVIRONMENT_NAME> [OPTIONAL_ENVIRONMENT_VARS]
+```
+
+Configure the load balancer by setting values in `environments/ENVIRONMNET_NAME/values.yaml`,
+check [this list](https://docs.traefik.io/configuration/acme/#provider) for the possible dns providers and required environment variables.
+You can see where the configuration values are used in `templates/loadbalancer.yaml` and `templates/loadbalancer-conf.yaml`
+
+Get the load balancer public IP to set DNS:
+
+```
+./kamatera.sh cluster loadbalancer info <ENVIRONMENT_NAME>
+```
+
+If you made any changes to the load balancer configuration you should update by re-running the install command without any additional arguments:
+
+```
+./kamatera.sh cluster loadbalancer install <ENVIRONMENT_NAME>
+```
+
+Traefik Web UI is not exposed publicly by default, you can access it via a proxy
+
+```
+./kamatera.sh cluster loadbalancer web-ui <ENVIRONMENT_NAME>
+```
+
+Web UI is available at http://localhost:3033/
+
+
+## Add worker nodes
 
 ```
 ./kamatera.sh cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
 ```
 
 * **ENVIRONMENT_NAME** - name of an existing environment (which has all required files under `environments/ENVIRONMENT_NAME/`)
-* **CPU**, **RAM**, **DISK_SIZE** - same as cluster create, you can add nodes with different settings
+* **CPU** - should be at least `2B` = 2 cores
+* **RAM** - should be at least `2048` = 2GB
+* **DISK_SIZE** - in GB
 
-Get the list of nodes, it might take a minute for the node to be in Ready state
-
-```
-./kamatera.sh cluster shell <ENVIRONMENT_NAME> kubectl get nodes
-```
-
-
-## Add a load balancer
-
-Add the load balancer configuration to `environments/ENVIRONMNET_NAME/values.yaml` -
-
-```
-loadBalancer:
-  redirectToHttps: true
-  enableHttps: true
-  letsEncrypt:
-    acmeEmail: your.email@some.domain.com
-    dnsProvider: cloudflare
-    rootDomain: your.domain.com
-```
-
-You can see where the values are used in `templates/loadbalancer.yaml` and `templates/loadbalancer-conf.yaml`
-
-Add the load balancer node, provide any required environment variables (optional)
-
-```
-./kamatera.sh cluster lb install <ENVIRONMENT_NAME> [OPTIONAL_ENVIRONMENT_VARS]
-```
-
-For example, if using the cloudflare DNS provider:
-
-```
-./kamatera.sh cluster lb install <ENVIRONMENT_NAME> "CLOUDFLARE_EMAIL=<EMAIL> CLOUDFLARE_API_KEY=<API_KEY>"
-```
-
-Check [this list](https://docs.traefik.io/configuration/acme/#provider) for the possible dns providers and required environment variables.
-
-Get the load balancer public IP to set DNS:
-
-```
-./kamatera.sh cluster lb info <ENVIRONMENT_NAME>
-```
-
-If you made any changes to the load balancer configuration you should update by re-running the install command without any additional arguments:
-
-```
-./kamatera.sh cluster lb install <ENVIRONMENT_NAME>
-```
-
-Traefik Web UI is not exposed publically by default, you can access it via a proxy
-
-```
-./kamatera.sh cluster lb web-ui <ENVIRONMENT_NAME>
-```
-
-Web UI is available at http://localhost:3033/
+See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
 
 
 ## Deployment

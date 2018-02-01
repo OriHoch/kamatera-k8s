@@ -3,6 +3,10 @@
 import sys, json, yaml, os
 
 filename = sys.argv[1]
+if not os.path.exists(filename):
+    print('{}')
+    exit(0)
+
 with open(filename) as f:
     values = yaml.load(f)
 
@@ -19,3 +23,5 @@ except Exception:
         raise
     else:
         print('{}')
+
+exit(0)

@@ -13,5 +13,6 @@ export K8S_ENVIRONMENT_NAME
 export KUBECONFIG=environments/${K8S_ENVIRONMENT_NAME}/secret-admin.conf
 [ "${K8S_CONNECT_ORIGINAL_PS1}" == "" ] && export K8S_CONNECT_ORIGINAL_PS1="${PS1}"
 export PS1="${K8S_CONNECT_ORIGINAL_PS1}\[\033[01;33m\]kamatera-${K8S_NAMESPACE}\[\033[0m\]$ "
+[ -e /usr/share/bash-completion/bash_completion ] && source /usr/share/bash-completion/bash_completion
 source <(kubectl completion bash)
 echo "Connected to kamatera-${K8S_NAMESPACE}"

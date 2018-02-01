@@ -25,7 +25,7 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/nginx-conf.yaml") . | sha256sum }}
     spec:
       nodeSelector:
-        kamateralb: "true"
+        kamateraloadbalancer: "true"
       containers:
       - name: nginx
         image: nginx:alpine

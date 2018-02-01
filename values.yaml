@@ -16,3 +16,6 @@ heapster:
 
 grafana:
   enabled: false
+
+storage:
+  enabled: false

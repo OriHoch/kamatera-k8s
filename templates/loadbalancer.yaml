@@ -15,6 +15,8 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/loadbalancer-conf.yaml") . | sha256sum }}
     spec:
+      nodeSelector:
+        kamateraloadbalancer: "true"
       containers:
       - name: traefik-conf
         image: alpine
@@ -31,6 +33,8 @@ spec:
           mountPath: /etc/traefik
         - name: traefik-conf
           mountPath: /traefik-conf
+        - name: traefik-acme
+          mountPath: /traefik-acme
       volumes:
       - name: etc-traefik
         hostPath:
@@ -39,4 +43,6 @@ spec:
       - name: traefik-conf
         configMap:
           name: traefik
+      - name: traefik-acme
+        emptyDir: {}
 {{ end }}

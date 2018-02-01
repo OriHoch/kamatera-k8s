@@ -1,4 +1,4 @@
-{{ if .Values.noise.enabled }}
+{{ if .Values.enabled }}
 apiVersion: batch/v1
 kind: Job
 #apiVersion: batch/v1beta1
@@ -10,11 +10,13 @@ spec:
 #  jobTemplate:
 #    spec:
   completions: 10000
-  parallelism: 50
+  parallelism: 2
   template:
     metadata:
       name: noise
     spec:
+      nodeSelector:
+        kamateranode: "true"
       containers:
       - name: pipelines
         image: orihoch/sk8s-pipelines@sha256:e89833818cef4f014b523ba1bedc074f060a78d2d16074459640149ef597b538
@@ -22,5 +24,17 @@ spec:
         - bash
         - "-c"
         - dpp run ./noise && dpp run ./amplify
+        volumeMounts:
+        - name: pipelines-data
+          mountPath: /pipelines/data
+          subPath: pipelines-data
       restartPolicy: Never
+      volumes:
+      - name: pipelines-data
+        {{ if .Values.global.nfsEnabled }}
+        persistentVolumeClaim:
+          claimName: nfs
+        {{ else }}
+        emptyDir: {}
+        {{ end }}
 {{ end }}
