@@ -1,78 +1,21 @@
 {{ if .Values.storage.enabled }}
-kind: Service
 apiVersion: v1
+kind: Namespace
 metadata:
-  name: nfs-server
-spec:
-  ports:
-    - name: nfs
-      port: 2049
-    - name: mountd
-      port: 20048
-    - name: rpcbind
-      port: 111
-  selector:
-    app: nfs-server
+  name: rook
 ---
-apiVersion: v1
-kind: ReplicationController
+apiVersion: rook.io/v1alpha1
+kind: Cluster
 metadata:
-  name: nfs-server
+  name: rook
+  namespace: rook
 spec:
-  replicas: 1
-  selector:
-    app: nfs-server
-  template:
-    metadata:
-      labels:
-        app: nfs-server
-    spec:
-      nodeSelector:
-        kamaterastorage: "true"
-      containers:
-      - name: nfs-server
-        image: k8s.gcr.io/volume-nfs:0.8
-        ports:
-          - name: nfs
-            containerPort: 2049
-          - name: mountd
-            containerPort: 20048
-          - name: rpcbind
-            containerPort: 111
-        securityContext:
-          privileged: true
-        volumeMounts:
-          - mountPath: /exports
-            name: mypvc
-      volumes:
-        - name: mypvc
-          hostPath:
-            path: /opt/kamatera/storage
-{{ if .Values.storage.nfsServiceIP }}
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: nfs
-spec:
-  capacity:
-    storage: 1Mi
-  accessModes:
-    - ReadWriteMany
-  nfs:
-    server: {{ .Values.storage.nfsServiceIP | quote }}
-    path: "/"
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: nfs
-spec:
-  accessModes:
-    - ReadWriteMany
-  storageClassName: ""
-  resources:
-    requests:
-      storage: 1Mi
-{{ end }}
+  dataDirHostPath: /var/lib/rook
+  storage:
+    useAllNodes: true
+    useAllDevices: false
+    storeConfig:
+      storeType: bluestore
+      databaseSizeMB: 1024
+      journalSizeMB: 1024
 {{ end }}

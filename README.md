@@ -12,12 +12,15 @@ Install the dependencies, following should work for Debian based systems:
 ```
 sudo apt-get update
 sudo apt-get install curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
-                     lsb-release openssh-client git bash jq sshpass openssh-client
+                     lsb-release openssh-client git bash jq sshpass openssh-client bash-completion
 sudo easy_install -U pip
 sudo pip install -U crcmod python-dotenv pyyaml
 curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
 chmod +x ./kubectl
 sudo mv ./kubectl /usr/local/bin/kubectl
+curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get > get_helm.sh
+chmod 700 get_helm.sh
+./get_helm.sh
 ```
 
 Clone the `kamatera-k8s` repository
@@ -41,6 +44,8 @@ Login with your Kamatera clientId and secret
 
 ## Create a new cluster
 
+Create the master node and initialize the cluster
+
 ```
 ./kamatera.sh cluster create <ENVIRONMENT_NAME>
 ```
@@ -49,59 +54,38 @@ Login with your Kamatera clientId and secret
 
 When the cluster is created you should have the cluster configuration available under `environments/ENVIRONMENT_NAME/`
 
-
-## Add persistent storage
-
-Add a persistent storage node
+Add a persistent storage node with the given disk size in GB
 
 ```
 ./kamatera.sh cluster storage install <ENVIRONMENT_NAME> <DISK_SIZE_GB>
 ```
 
-
-## Add a load balancer
-
-```
-./kamatera.sh cluster loadbalancer install <ENVIRONMENT_NAME> [OPTIONAL_ENVIRONMENT_VARS]
-```
-
-Configure the load balancer by setting values in `environments/ENVIRONMNET_NAME/values.yaml`,
-check [this list](https://docs.traefik.io/configuration/acme/#provider) for the possible dns providers and required environment variables.
-You can see where the configuration values are used in `templates/loadbalancer.yaml` and `templates/loadbalancer-conf.yaml`
-
-Get the load balancer public IP to set DNS:
-
-```
-./kamatera.sh cluster loadbalancer info <ENVIRONMENT_NAME>
-```
-
-If you made any changes to the load balancer configuration you should update by re-running the install command without any additional arguments:
+Add a load balancer node
 
 ```
 ./kamatera.sh cluster loadbalancer install <ENVIRONMENT_NAME>
 ```
 
-Traefik Web UI is not exposed publicly by default, you can access it via a proxy
-
-```
-./kamatera.sh cluster loadbalancer web-ui <ENVIRONMENT_NAME>
-```
-
-Web UI is available at http://localhost:3033/
-
-
-## Add worker nodes
+Add at least 1 worker node
 
 ```
 ./kamatera.sh cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
 ```
 
-* **ENVIRONMENT_NAME** - name of an existing environment (which has all required files under `environments/ENVIRONMENT_NAME/`)
 * **CPU** - should be at least `2B` = 2 cores
 * **RAM** - should be at least `2048` = 2GB
 * **DISK_SIZE** - in GB
 
 See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
+
+
+## Accessing the Kubernetes Dashboard
+
+```
+./kamatera.sh cluster web-ui <ENVIRONMENT_NAME>
+```
+
+Kubernets Dashboard is available at http://localhost:9090/
 
 
 ## Deployment
@@ -131,3 +115,36 @@ Depending on the changes you might need to add arguments to helm upgrade
 * For debugging: `--debug --dry-run`
 
 refer to the [Helm documentation](https://helm.sh/) for details.
+
+Alternatively - you can use `kubectl apply -f` to install kubernetes templates directly without helm e.g.
+
+```
+./kamatera.sh cluster shell <ENVIRONMENT_NAME> kubectl apply -f kubernetes_template_file.yaml
+```
+
+
+## Configuring the load balancer
+
+Configure the load balancer by setting values in `environments/ENVIRONMNET_NAME/values.yaml`,
+check [this list](https://docs.traefik.io/configuration/acme/#provider) for the possible dns providers and required environment variables.
+You can see where the configuration values are used in `templates/loadbalancer.yaml` and `templates/loadbalancer-conf.yaml`
+
+Get the load balancer public IP to set DNS:
+
+```
+./kamatera.sh cluster loadbalancer info <ENVIRONMENT_NAME>
+```
+
+If you made any changes to the load balancer configuration you should update by re-running the install command without any additional arguments:
+
+```
+./kamatera.sh cluster loadbalancer install <ENVIRONMENT_NAME>
+```
+
+Traefik Web UI is not exposed publicly by default, you can access it via a proxy
+
+```
+./kamatera.sh cluster loadbalancer web-ui <ENVIRONMENT_NAME>
+```
+
+Load balancer Web UI is available at http://localhost:3033/
