@@ -18,6 +18,10 @@ data:
         include /etc/nginx/conf.d/restricted.inc;
       }
       {{end}}{{ end }}
+
+      location /elasticsearch {
+        proxy_pass http://elasticsearch:9200/;
+      }
     }
 
   healthcheck.inc: |
