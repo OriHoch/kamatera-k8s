@@ -126,7 +126,7 @@ kamatera_cluster_create_base_node() {
         kamatera_stop_progress "OK"
         kamatera_info "preparing the server for kube-adm installation"
         if ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$SERVER_IP -- "
-            swapoff -a &&\
+            swapoff -a && sed -i '/ swap / s/^/#/' /etc/fstab &&\
             echo "'"'"127.0.0.1 "'`'"hostname"'`'""'"'" >> /etc/hosts &&\
             while ! apt-get update; do sleep 5; done &&\
             while ! apt-get install -y docker.io apt-transport-https; do sleep 5; done &&\
@@ -499,20 +499,18 @@ kamatera_cluster_install_storage() {
         helm init --service-account tiller --upgrade --force-upgrade --history-max 1
     "; do kamatera_progress; sleep 30; done
     kamatera_info "waiting for tiller"
-    while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "kubectl get pods --all-namespaces | grep tiller-deploy- | grep ' Running '"; do
-        sleep 5
-        kamatera_progress
-    done
-    while true; do
-        TARGET_ROOK_VERSION=`kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" "helm search rook | grep rook-master/rook | cut -f2 -"`
-        kamatera_debug "TARGET_ROOK_VERSION=${TARGET_ROOK_VERSION}"
-        kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" "helm version" && ! [ -z "${TARGET_ROOK_VERSION}" ] && break
-        sleep 5
+    while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
+        kubectl get pods --all-namespaces | grep tiller-deploy- | grep ' Running ' &&\
+        helm version &&\
+        helm repo update &&\
+        helm repo add rook-alpha https://charts.rook.io/alpha
+    "; do
+        sleep 20
         kamatera_progress
     done
     if ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "helm list | grep 'rook-'"; then
         ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
-            helm install rook-master/rook --version ${TARGET_ROOK_VERSION}
+            helm install rook-alpha/rook
         " && echo "Failed to install storage component" && exit 1
     fi
     kamatera_stop_progress "OK"
