@@ -159,7 +159,7 @@ If you inspect the elasticsearch pod, you will notice it's running on either the
 Let's create a minimal worker node -
 
 ```
-./kamatera.sh cluster node add <ENVIRONMENT_NAME> "2B" "2048" "30
+./kamatera.sh cluster node add <ENVIRONMENT_NAME> "2B" "2048" "30"
 ```
 
 The parameters following environment name may be modified to specify required resources:
@@ -185,7 +185,7 @@ kubectl rollout status deployment/elasticsearch && ./force_update.sh nginx
 
 Let's add persistent storage for the Elasticsearch deployment
 
-Create the elasticsearch [Rook filesystem](https://github.com/rook/rook/blob/master/Documentation/filesystem.md) configuration in `./elasticsearch-filesystem.yaml`
+Create the elasticsearch [Rook filesystem](https://github.com/rook/rook/blob/master/Documentation/filesystem.md) configuration and the pod configuration in `./elasticsearch-filesystem.yaml`:
 
 ```
 apiVersion: rook.io/v1alpha1
@@ -204,19 +204,7 @@ spec:
   metadataServer:
     activeCount: 1
     activeStandby: true
-```
-
-Deploy the filesystem
-
-```
-kubectl create -f ./elasticsearch-filesystem.yaml
-```
-
-Recreate the elasticsearch deployment to use the filesystem resource and to use a yaml file
-
-Create the elasticsearch configuration in `elasticsearch.yaml` -
-
-```
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -265,16 +253,6 @@ kubectl rollout status deployment/elasticsearch && ./force_update.sh nginx
 ```
 
 To debug storage problems, use [Rook Toolbox](https://github.com/rook/rook/blob/master/Documentation/toolbox.md#rook-toolbox)
-
-
-```
-kubectl run elasticsearch --image=docker.elastic.co/elasticsearch/elasticsearch-oss:6.2.1 \
-                          --port=9200 --replicas=1 --env=discovery.type=single-node --expose \
-                          --overrides='{"spec":{"template":{"spec":{"nodeSelector":{"kamateranode":"true"}}}}}'
-kubectl rollout status deployment/elasticsearch && ./force_update.sh nginx
-```
-
-
 
 
 ## Advanced topics

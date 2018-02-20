@@ -109,13 +109,18 @@ else
         ! kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}" --install && kamatera_error failed to deploy root chart && exit 1
         kamatera_progress
         while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
-            kubectl get pods --all-namespaces | grep ' Running ' | grep kubernetes-dashboard-
+            kubectl get pods --all-namespaces | grep ' Running ' | grep kubernetes-dashboard- &&\
+            kubectl get pods -n rook | grep rook-ceph-osd | grep ' Running ' &&\
+            kubectl get pods -n rook | grep rook-ceph-mgr | grep ' Running ' &&\
+            kubectl get pods -n rook | grep rook-ceph-mon | grep ' Running ' &&\
+            kubectl get pods -n kube-system | grep canal- | grep ' Running '
         "; do
             kamatera_progress
-            sleep 5
+            sleep 20
         done
         kamatera_debug "Creating load balancer node"
-        ! kamatera_cluster_create_loadbalancer_node "${K8S_ENVIRONMENT_NAME}" "2B" "2048" "20" "" "" "${8}" && kamatera_error failed to create loadbalancer node && exit 1
+        ! kamatera_cluster_create_loadbalancer_node "${K8S_ENVIRONMENT_NAME}" "2B" "2048" "20" \
+            && kamatera_error failed to create loadbalancer node && exit 1
         kamatera_progress
         kamatera_stop_progress Great Success!
         exit 0

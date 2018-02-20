@@ -86,7 +86,7 @@ kamatera_cluster_create_base_node() {
         COMMAND_ID=$(echo "${RES}" | jq -r '.[0]')
         kamatera_debug "COMMAND_ID=${COMMAND_ID}"
         echo "${COMMAND_ID}" > "${SERVER_PATH}/command_id"
-        [ -z "${COMMAND_ID}" ] && kamatera_error "failed to create server" && exit 1
+        [ -z "${COMMAND_ID}" ] && kamatera_error "failed to create server: ${RES}" && exit 1
         kamatera_info "you can track progress by running './kamatera.sh command info ${COMMAND_ID}' or in kamatera console web UI task queue"
         kamatera_start_progress "waiting for kamatera server create command to complete, please wait"
         while true; do
@@ -205,10 +205,11 @@ kamatera_cluster_create_worker_node() {
         kamatera_stop_progress "successfully created worker node"
         exit 0
     )
+    RES=$?
     if [ "${TEMP_SERVER_PATH}" == "1" ]; then
         rm -rf "${TEMP_SERVER_PATH}"
     fi
-    return $?
+    return $RES
 }
 
 # a persistent node is a worker node which has a unique server name and persistent configuration
@@ -275,10 +276,11 @@ kamatera_cluster_create_persistent_node() {
         kamatera_stop_progress "${NODE_LABEL} node created successfully"
         exit 0
     )
+    RES=$?
     if [ "${TEMP_SERVER_PATH}" == "1" ]; then
         rm -rf "${TEMP_SERVER_PATH}"
     fi
-    return $?
+    return $RES
 }
 
 # create a persistent node that will act as the kubernetes master for the given environment
@@ -495,7 +497,12 @@ kamatera_cluster_install_storage() {
     while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
         kubectl apply -f helm-tiller-rbac-config.yaml;
         helm init --service-account tiller --upgrade --force-upgrade --history-max 1
-    "; do kamatera_progress; sleep 5; done
+    "; do kamatera_progress; sleep 30; done
+    kamatera_info "waiting for tiller"
+    while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "kubectl get pods --all-namespaces | grep tiller-deploy- | grep ' Running '"; do
+        sleep 5
+        kamatera_progress
+    done
     if ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "helm list | grep 'rook-'"; then
         ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
             helm install rook-master/rook --version $(helm search rook | grep rook-master/rook | cut -f2 -)

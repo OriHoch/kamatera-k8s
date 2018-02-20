@@ -10,69 +10,21 @@ test_cluster() {
     echo "Creating environment ${TEST_ENVIRONMENT_NAME}"
     echo
 
-    ! ./kamatera.sh cluster create ${TEST_ENVIRONMENT_NAME} "" "" "" "" "${MASTER_SERVER_PASSWORD}" \
+    ! ./kamatera.sh cluster create ${TEST_ENVIRONMENT_NAME} \
         && echo "failed to create cluster" && return 1
 
-    while ! ./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} "kubectl get nodes | grep ' Ready '"; do
-        echo .
-        sleep 5
-    done
+    echo "sleeping 30 seconds..."
+    ! ./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} kubectl run elasticsearch \
+                                  --image=docker.elastic.co/elasticsearch/elasticsearch-oss:6.2.1 \
+                                  --port=9200 --replicas=1 --env=discovery.type=single-node --expose \
+        && echo "Failed to deploy elasticsearch" && return 1
+    kubectl rollout status elasticsearch
+    kubectl port-forward `kubectl get pods | grep elasticsearch- | cut -d" " -f1 -` 9200 &
+    ! curl http://localhost:9200 && echo "curl failed" && return 1
 
-    echo
     echo "Adding worker node to the cluster"
-    echo
-
-    ! ./kamatera.sh cluster node add ${TEST_ENVIRONMENT_NAME} "2B" "2048" "30" "" "${NODE_SERVER_PASSWORD}" \
-        && echo "failed to add worker node" && return 1
-
-    echo "waiting for node to be added to the cluster"
-    while ! [ $(./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} "kubectl get nodes | tee /dev/stderr | grep ' Ready ' | wc -l") == "2" ]; do
-        echo .
-        sleep 60
-    done
-
-    echo "schedule a simple testing pod on the cluster"
-    ! ./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} 'kubectl run test --image=alpine -- sh -c "while true; do echo .; sleep 1; done"' && return 1
-
-    echo "waiting for pod"
-    while ! [ $(./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} kubectl get pods | tee /dev/stderr | grep test- | grep ' Running ' | wc -l) == "1" ]; do
-        echo .
-        sleep 5
-    done
-
-    POD_NAME=$(./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} kubectl get pods | grep test- | grep ' Running ' | cut -d" " -f1)
-    echo "POD_NAME=$POD_NAME"
-    sleep 2
-    ! [ $(./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} kubectl logs --tail=1 $POD_NAME) == "." ] && echo "pod is not running or has an error" && return 1
-
-    echo "installing storage node"
-
-    ! ./kamatera.sh cluster storage install ${TEST_ENVIRONMENT_NAME} 30 && echo "failed to install storage" && return 1
-
-    echo "installing the load balancer"
-
-    echo "loadBalancer:
-  redirectToHttps: true
-  enableHttps: true
-  letsEncrypt:
-    acmeEmail: ${DO_EMAIL}
-    dnsProvider: digitalocean
-    rootDomain: ${DO_DOMAIN}
-" > environments/${TEST_ENVIRONMENT_NAME}/values.yaml
-
-    ! ./kamatera.sh cluster loadbalancer install ${TEST_ENVIRONMENT_NAME} "DO_AUTH_TOKEN=${DO_AUTH_TOKEN}" "${LB_SERVER_PASSWORD}" \
-        && echo "failed to install the load balancer" && return 1
-
-    eval `cat environments/${TEST_ENVIRONMENT_NAME}/loadbalancer.env`
-
-    echo "updating DNS..."
-    curl -X PUT -H "Content-Type: application/json" -H "Authorization: Bearer ${DO_AUTH_TOKEN}" \
-         -d '{"data":"'${IP}'"}' "https://api.digitalocean.com/v2/domains/${DO_DOMAIN_ROOT}/records/${DO_DOMAIN_RECORD_ID}"
-    sleep 10
-
-    echo "waiting for external access to the cluster..."
-    sleep 60
-    ! curl -v "https://${DO_DOMAIN}/" && return 1
+    ! ./kamatera.sh cluster node add ${TEST_ENVIRONMENT_NAME} "2B" "2048" "30" \
+        && echo "Failed to add worker node" && return 1
 
     echo
     echo "Great Success!"
@@ -117,6 +69,8 @@ RES=0
 if [ "${1}" != "--terminate-only" ]; then
     test_cluster "kamateratest1"
     RES=$?; echo "RES=$RES"
-    [ "${1}" != "--terminate-first" ] && terminate_cluster "kamateratest1"
+    # don't terminate - to allow debugging
+    # TODO: uncomment to prevent zombie clusters...
+    # [ "${1}" != "--terminate-first" ] && terminate_cluster "kamateratest1"
 fi
 exit $RES
