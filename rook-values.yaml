@@ -1,0 +1,15 @@
+image:
+  prefix: rook
+  repository: rook/rook
+  tag: alpha
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    cpu: 300m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+rbacEnable: true

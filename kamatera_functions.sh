@@ -40,7 +40,7 @@ kamatera_progress() {
 kamatera_wait_progress() {
     # this just provides nicer UX while waiting..
     kamatera_progress 5; kamatera_progress 6; kamatera_progress 7; kamatera_progress 2; kamatera_progress 3
-    kamatera_progress 9; kamatera_progress 11; kamatera_progress 2; kamatera_progress 8; kamatera_progress 7
+    kamatera_progress 4; kamatera_progress 4; kamatera_progress 5; kamatera_progress 6; kamatera_progress 4
 }
 
 kamatera_stop_progress() {
@@ -510,9 +510,11 @@ kamatera_cluster_install_storage() {
     done
     if ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "helm list | grep 'rook-'"; then
         ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
-            helm install rook-alpha/rook
+            helm install --name rook rook-alpha/rook -f rook-values.yaml
         " && echo "Failed to install storage component" && exit 1
     fi
+    kamatera_progress
+    sleep 10
     kamatera_stop_progress "OK"
     return 0
 }
