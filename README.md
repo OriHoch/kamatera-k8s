@@ -106,7 +106,7 @@ kubectl rollout status elasticsearch
 
 ## Using port forwarding to access internal cluster services
 
-You can easily connect to any pod in the cluster using kubectl port-forward
+You can connect to any pod in the cluster using kubectl port-forward
 
 Following will start a port forward with the elasticsearch pod
 
@@ -129,10 +129,10 @@ Edit `templates/nginx-conf.yaml` and add the following under `default.conf` befo
       }
 ```
 
-Deploy the root chart to update nginx configuration
+Reload the loadbalancer to apply configuration changes
 
 ```
-./kamatera.sh cluster deploy <ENVIRONMENT_NAME>
+./kamatera.sh cluster loadbalancer reload <ENVIRONMENT_NAME>
 ```
 
 Elasticsearch should be accessible at https://PUBLIC_IP/elasticsearch
@@ -149,6 +149,12 @@ Add http authentication to your elasticsearch by modifiying the location configu
         proxy_pass http://elasticsearch:9200/;
         include /etc/nginx/conf.d/restricted.inc;
       }
+```
+
+Apply the changes by reloading the loadbalancer
+
+```
+./kamatera.sh cluster loadbalancer reload <ENVIRONMENT_NAME>
 ```
 
 
