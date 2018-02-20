@@ -18,4 +18,11 @@ grafana:
   enabled: false
 
 storage:
+  enabled: true
+
+loadBalancer:
   enabled: false
+  enableHttps: true
+
+global:
+  enableRootChart: true
