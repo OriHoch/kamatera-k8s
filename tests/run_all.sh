@@ -69,8 +69,6 @@ RES=0
 if [ "${1}" != "--terminate-only" ]; then
     test_cluster "kamateratest1"
     RES=$?; echo "RES=$RES"
-    # don't terminate - to allow debugging
-    # TODO: uncomment to prevent zombie clusters...
-    # [ "${1}" != "--terminate-first" ] && terminate_cluster "kamateratest1"
+    [ "${1}" != "--terminate-first" ] && terminate_cluster "kamateratest1"
 fi
 exit $RES

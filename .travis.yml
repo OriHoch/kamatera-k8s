@@ -16,4 +16,6 @@ script:
   chmod +x ./kubectl &&\
   sudo mv ./kubectl /usr/local/bin/kubectl &&\
   openssl aes-256-cbc -K $encrypted_4fa8bbe6dd69_key -iv $encrypted_4fa8bbe6dd69_iv -in ./kamatera-secret.env.enc -out ./secret-kamatera.env -d &&\
+  touch ./kamatera.log
+  tail -f ./kamatera.log &
   tests/run_all.sh --terminate-first
