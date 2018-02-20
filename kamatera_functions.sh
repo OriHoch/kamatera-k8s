@@ -495,7 +495,7 @@ kamatera_cluster_install_storage() {
     K8S_ENVIRONMENT_NAME="${1}"
     kamatera_start_progress "installing storage component"
     while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
-        kubectl apply -f helm-tiller-rbac-config.yaml;
+        kubectl apply -f helm-tiller-rbac-config.yaml &&\
         helm init --service-account tiller --upgrade --force-upgrade --history-max 1
     "; do kamatera_progress; sleep 30; done
     kamatera_info "waiting for tiller"
@@ -505,11 +505,11 @@ kamatera_cluster_install_storage() {
     done
     while true; do
         TARGET_ROOK_VERSION=`kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" "helm search rook | grep rook-master/rook | cut -f2 -"`
-        [ "${TARGET_ROOK_VERSION}" != "" ] && helm version --server && break
+        kamatera_debug "TARGET_ROOK_VERSION=${TARGET_ROOK_VERSION}"
+        kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" "helm version" && ! [ -z "${TARGET_ROOK_VERSION}" ] && break
         sleep 5
         kamatera_progress
     done
-    kamatera_debug "TARGET_ROOK_VERSION=${TARGET_ROOK_VERSION}"
     if ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "helm list | grep 'rook-'"; then
         ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
             helm install rook-master/rook --version ${TARGET_ROOK_VERSION}
