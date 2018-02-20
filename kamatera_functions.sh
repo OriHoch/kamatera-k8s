@@ -503,9 +503,16 @@ kamatera_cluster_install_storage() {
         sleep 5
         kamatera_progress
     done
+    while true; do
+        TARGET_ROOK_VERSION=`kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" "helm search rook | grep rook-master/rook | cut -f2 -"`
+        [ "${TARGET_ROOK_VERSION}" != "" ] && helm version --server && break
+        sleep 5
+        kamatera_progress
+    done
+    kamatera_debug "TARGET_ROOK_VERSION=${TARGET_ROOK_VERSION}"
     if ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "helm list | grep 'rook-'"; then
         ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
-            helm install rook-master/rook --version $(helm search rook | grep rook-master/rook | cut -f2 -)
+            helm install rook-master/rook --version ${TARGET_ROOK_VERSION}
         " && echo "Failed to install storage component" && exit 1
     fi
     kamatera_stop_progress "OK"
