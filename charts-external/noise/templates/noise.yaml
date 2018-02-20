@@ -1,14 +1,9 @@
 {{ if .Values.enabled }}
 apiVersion: batch/v1
 kind: Job
-#apiVersion: batch/v1beta1
-#kind: CronJob
 metadata:
   name: noise
 spec:
-#  schedule: "*/1 * * * *"
-#  jobTemplate:
-#    spec:
   completions: 10000
   parallelism: 2
   template:
@@ -31,10 +26,10 @@ spec:
       restartPolicy: Never
       volumes:
       - name: pipelines-data
-        {{ if .Values.global.nfsEnabled }}
-        persistentVolumeClaim:
-          claimName: nfs
-        {{ else }}
-        emptyDir: {}
-        {{ end }}
+        flexVolume:
+          driver: rook.io/rook
+          fsType: ceph
+          options:
+            fsName: noisefs
+            clusterName: rook
 {{ end }}
