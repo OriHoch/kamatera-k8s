@@ -22,6 +22,11 @@ kamatera_debug() {
     fi
 }
 
+kamatera_debug_file() {
+    kamatera_debug "${1}
+$(cat "${1}")"
+}
+
 kamatera_info() {
     echo "INFO: ${@}" | tee -a ./kamatera.log
 }
@@ -328,8 +333,9 @@ kamatera_cluster_create_master_node() {
         kamatera_debug "updating environment values"
         sshpass -e scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP:/etc/kubernetes/admin.conf environments/${K8S_ENVIRONMENT_NAME}/secret-admin.conf >> ./kamatera.log 2>&1
         kamatera_progress
-        kamatera_debug "updating master node taints"
-        kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl taint nodes --all node-role.kubernetes.io/master-
+        # uncomment following lines to allow scheduling workloads on the master, not recommended!
+        # kamatera_debug "updating master node taints"
+        # kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl taint nodes --all node-role.kubernetes.io/master-
         echo "MAIN_SERVER_IP=${IP}" >> environments/${K8S_ENVIRONMENT_NAME}/.env
         kamatera_stop_progress "suuccessfully created master node"
         exit 0
@@ -343,6 +349,33 @@ kamatera_cluster_loadbalancer_reload() {
     eval `cat environments/${K8S_ENVIRONMENT_NAME}/${NODE_LABEL}.env`
     export SSHPASS=$(cat "environments/${K8S_ENVIRONMENT_NAME}/secret-${NODE_LABEL}-pass")
     kamatera_start_progress "reloading loadbalancer configuration"
+    ./update_yaml.py '{"nginx":{"enabled":true,"htpasswdSecretName":"nginx-htpasswd"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+    kamatera_debug_file "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+    kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}"
+    kamatera_progress
+    NEEDS_SERVICE_IP_UPDATE="1"
+    NGINX_SERVICE_IP=$(kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" kubectl get service nginx -o json | jq -r .spec.clusterIP)
+    kamatera_debug "NGINX_SERVICE_IP=${NGINX_SERVICE_IP}"
+    kamatera_progress
+    if [ "${NGINX_SERVICE_IP}" != "null" ] && ! [ -z "${NGINX_SERVICE_IP}" ]; then
+        YAML_NGINX_IP=$(eval echo `./read_yaml.py environments/abcde/values.auto-updated.yaml loadBalancer nginxServiceClusterIP`)
+        kamatera_progress
+        if [ "${YAML_NGINX_IP}" == "${NGINX_SERVICE_IP}" ]; then
+            NEEDS_SERVICE_IP_UPDATE="0"
+        fi
+    fi
+    kamatera_progress
+    if [ "${NEEDS_SERVICE_IP_UPDATE}" == "1" ]; then
+        kamatera_debug "deploying to create / update nginx service"
+        kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}" --install
+        kamatera_progress
+        sleep 10
+        kamatera_progress
+        NGINX_SERVICE_IP=$(kubectl get service nginx -o json | jq -r .spec.clusterIP)
+        kamatera_debug "updating cluster service ip in configuration to ${NGINX_SERVICE_IP}"
+        ./update_yaml.py '{"loadBalancer":{"nginxServiceClusterIP":"'$NGINX_SERVICE_IP'"}}' environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml
+        kamatera_debug_file "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+    fi
     kamatera_debug "deploying to apply any cluster configuration changes..."
     kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}"
     kamatera_info "reloading traefik"
@@ -375,6 +408,10 @@ kamatera_cluster_loadbalancer_reload() {
     return 0
 }
 
+kamatera_cluster_get_nginx_service_ip() {
+    kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" kubectl describe service nginx | grep 'IP:' | cut -d" " -f2-
+}
+
 # creates a persistent node that will act as the loadbalancer for the environment
 kamatera_cluster_create_loadbalancer_node() {
     # the kamatera environment name to add this node to
@@ -397,31 +434,37 @@ kamatera_cluster_create_loadbalancer_node() {
         kamatera_start_progress "setting up ${NODE_LABEL} node..."
         sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "mkdir -p /etc/traefik; docker pull traefik" >> ./kamatera.log 2>&1
         kamatera_progress
-        ./update_yaml.py '{"global":{"enableRootChart":true},"loadBalancer":{"enabled":true,"nodeName":"'"${K8S_ENVIRONMENT_NAME}loadbalancer${NODE_ID}"'"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
-        kamatera_debug "deploying to enable root chart and load balancer..."
+        kamatera_debug "enabling and deploying load balancer"
+        ./update_yaml.py '{"loadBalancer":{"enabled":true}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+        kamatera_debug_file "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
         kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}" --install
         kamatera_progress
-        if [ $(./read_yaml.py environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml nginx enabled) != "true" ]; then
-            if ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl describe secret nginx-htpasswd; then
-                kamatera_debug "create nginx http auth secrets..."
-                password=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,20)))")
-                ! [ -e environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd ] &&\
-                    htpasswd -bc environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd superadmin "${password}"
-                kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl create secret generic nginx-htpasswd --from-file=environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd
-                kamatera_progress
-                echo
-                echo "http auth credentials"
-                echo
-                echo "username = superadmin"
-                echo "password = ${password}"
-                echo
-                echo "the credentials cannot be retrieved later"
-                echo
-            fi
-            kamatera_debug "enabling and deploying nginx..."
-            ./update_yaml.py '{"nginx":{"enabled":true,"htpasswdSecretName":"nginx-htpasswd"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
-            kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}"
+        kamatera_debug "enabling and deploying nginx"
+        if ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl describe secret nginx-htpasswd; then
+            kamatera_debug "creating nginx http auth secrets"
+            password=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,20)))")
+            ! [ -e environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd ] &&\
+                htpasswd -bc environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd superadmin "${password}"
+            kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl create secret generic nginx-htpasswd --from-file=environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd
             kamatera_progress
+            echo
+            echo "http auth credentials"
+            echo
+            echo "username = superadmin"
+            echo "password = ${password}"
+            echo
+            echo "the credentials cannot be retrieved later"
+            echo
+        fi
+        ./update_yaml.py '{"nginx":{"enabled":true,"htpasswdSecretName":"nginx-htpasswd"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+        kamatera_debug_file "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+        kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}"
+        kamatera_progress
+
+        if [ $(./read_yaml.py environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml nginx enabled) != "true" ]; then
+
+            kamatera_debug "enabling and deploying nginx..."
+
             kamatera_debug "getting nginx service ip..."
             while true; do
                 NGINX_SERVICE_IP=$(echo $(kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" "kubectl describe service nginx | grep 'IP:' | cut -d"'" "'" -f2-"))
@@ -429,8 +472,9 @@ kamatera_cluster_create_loadbalancer_node() {
                 sleep 10
                 kamatera_progress
             done
-            kamatera_debug "updating nginx service ip (${NGINX_SERVICE_IP}) in load balancer..."
+            kamatera_debug "updating nginx service ip (${NGINX_SERVICE_IP}) in load balancer configuration..."
             ./update_yaml.py '{"loadBalancer":{"nginxServiceClusterIP":"'${NGINX_SERVICE_IP}'"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+            kamatera_debug_file "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
         fi
         # if ! [ -z "${ENV_CONFIG}" ]; then
         #     echo "setting traefik environment variables..."
@@ -491,32 +535,119 @@ kamatera_cluster_shell_interactive() {
     fi
 }
 
-kamatera_cluster_install_storage() {
+kamatera_cluster_install_helm() {
     K8S_ENVIRONMENT_NAME="${1}"
-    kamatera_start_progress "installing storage component"
+    kamatera_start_progress "installing helm on ${K8S_ENVIRONMENT_NAME} environment"
     while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
         kubectl apply -f helm-tiller-rbac-config.yaml &&\
         helm init --service-account tiller --upgrade --force-upgrade --history-max 1
     "; do kamatera_progress; sleep 30; done
-    kamatera_info "waiting for tiller"
+    kamatera_progress
     while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
-        kubectl get pods --all-namespaces | grep tiller-deploy- | grep ' Running ' &&\
-        helm version &&\
-        helm repo update &&\
-        helm repo add rook-alpha https://charts.rook.io/alpha
+        kubectl get pods -n kube-system | grep tiller-deploy- | grep ' Running ' &&\
+        helm version
     "; do
         sleep 20
         kamatera_progress
     done
-    if ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "helm list | grep 'rook-'"; then
-        ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
-            helm install --name rook rook-alpha/rook -f rook-values.yaml
-        " && echo "Failed to install storage component" && exit 1
-    fi
+    sleep 20
+    kamatera_stop_progress OK
+    return 0
+}
+
+kamatera_cluster_test_storage_operator() {
+    kamatera_cluster_shell "${1}" "
+        kubectl -n rook-system get pod | grep rook-agent- | grep ' Running ' &&\
+        kubectl -n rook-system get pod | grep rook-operator- | grep ' Running '
+    "
+}
+
+kamatera_cluster_test_storage_cluster() {
+    kamatera_cluster_shell "${1}" "
+        kubectl -n rook get pod | grep rook-ceph-mon | grep ' Running ' &&\
+        kubectl -n rook get pod | grep rook-api | grep ' Running ' &&\
+        kubectl -n rook get pod | grep rook-ceph-mgr | grep ' Running ' &&\
+        kubectl -n rook get pod | grep rook-ceph-osd | grep ' Running '
+    "
+}
+
+kamatera_cluster_install_storage() {
+    K8S_ENVIRONMENT_NAME="${1}"
+    kamatera_start_progress "installing storage"
+    ! kamatera_cluster_test_storage_operator "${K8S_ENVIRONMENT_NAME}" \
+        && ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "kubectl create -f rook-operator-0.6.yaml" \
+            && kamatera_error failed to install rook operator && return 1
+    kamatera_progress
+    while ! kamatera_cluster_test_storage_operator "${K8S_ENVIRONMENT_NAME}"; do sleep 10; kamatera_progress; done
+    kamatera_progress
+    ! kamatera_cluster_test_storage_cluster \
+        && ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "kubectl create -f rook-cluster-0.6.2.yaml" \
+            && kamatera_error failed to install rook operator && return 1
+    kamatera_progress
+    while ! kamatera_cluster_test_storage_cluster "${K8S_ENVIRONMENT_NAME}"; do sleep 10; kamatera_progress; done
     kamatera_progress
     sleep 10
     kamatera_stop_progress "OK"
     return 0
+}
+
+kamatera_create_default_cluster() {
+    K8S_ENVIRONMENT_NAME="${1}"
+    [ -e "environments/${K8S_ENVIRONMENT_NAME}/.env" ] \
+        && kamatera_error "environment already exists, delete the environment's .env file to recreate" && return 1
+    ! mkdir -p "environments/${K8S_ENVIRONMENT_NAME}" && kamatera_error "failed to create environment directory" && return 1
+    ! kamatera_cluster_create_master_node "${K8S_ENVIRONMENT_NAME}" "2B" "2048" "30" \
+        && kamatera_error "failed to create cluster" && return 1
+    if [ "${SKIP_COMPONENTS}" != "yes" ]; then
+        ! kamatera_cluster_install_default_components "${K8S_ENVIRONMENT_NAME}" \
+            && kamatera_error "failed to install default components" && return 1
+    else
+        kamatera_info "Skipping cluster components installation, only master node was created"
+    fi
+    return 0
+}
+
+kamatera_cluster_install_default_components() {
+    K8S_ENVIRONMENT_NAME="${1}"
+    kamatera_start_progress "Installing and initializing cluster components on ${K8S_ENVIRONMENT_NAME} environment"
+
+    kamatera_debug creating default worker node
+    ! kamatera_cluster_create_worker_node "${K8S_ENVIRONMENT_NAME}" "2B" "2048" "30" "" "node" \
+        && kamatera_error failed to create worker node && exit 1
+    kamatera_progress
+
+    kamatera_debug installing helm
+    ! kamatera_cluster_install_helm "${K8S_ENVIRONMENT_NAME}" \
+        && kamatera_error failed to install helm && exit 1
+    kamatera_progress
+
+    kamatera_debug installing storage
+    ! kamatera_cluster_install_storage "${K8S_ENVIRONMENT_NAME}" \
+        && kamatera_error failed to install storage && exit 1
+    kamatera_progress
+
+    kamatera_debug deploying root chart
+    ! kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}" --install \
+        && kamatera_error failed to deploy root chart && exit 1
+    kamatera_progress
+
+    while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
+        kubectl get pods --all-namespaces | grep ' Running ' | grep kubernetes-dashboard- &&\
+        kubectl get pods -n rook | grep rook-ceph-osd | grep ' Running ' &&\
+        kubectl get pods -n rook | grep rook-ceph-mgr | grep ' Running ' &&\
+        kubectl get pods -n rook | grep rook-ceph-mon | grep ' Running ' &&\
+        kubectl get pods -n kube-system | grep canal- | grep ' Running '
+    "; do
+        kamatera_progress
+        sleep 20
+    done
+
+    kamatera_debug "Creating load balancer node"
+    ! kamatera_cluster_create_loadbalancer_node "${K8S_ENVIRONMENT_NAME}" "2B" "2048" "20" \
+        && kamatera_error failed to create loadbalancer node && exit 1
+    kamatera_progress
+
+    kamatera_stop_progress Great Success!
 }
 
 # store the kamatera API credentials

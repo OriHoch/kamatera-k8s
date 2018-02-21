@@ -1,24 +1,9 @@
-noise:
-  enabled: false
-
 nginx:
   enabled: false
 
 kubernetesDashboard:
   enabled: true
   clusterRoleBinding: true
-
-influxdb:
-  enabled: false
-
-heapster:
-  enabled: false
-
-grafana:
-  enabled: false
-
-storage:
-  enabled: true
 
 loadBalancer:
   enabled: false

@@ -1,4 +1,3 @@
-{{ if .Values.storage.enabled }}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -10,6 +9,7 @@ metadata:
   name: rook
   namespace: rook
 spec:
+  versionTag: v0.6.2
   dataDirHostPath: /var/lib/rook
   storage:
     useAllNodes: true
@@ -18,4 +18,3 @@ spec:
       storeType: bluestore
       databaseSizeMB: 1024
       journalSizeMB: 1024
-{{ end }}

@@ -92,37 +92,8 @@ else
 
     elif [ "${1} ${2}" == "cluster create" ]; then
         K8S_ENVIRONMENT_NAME="${3}"
-        CPU="${4}"
-        RAM="${5}"
-        DISK_SIZE_GB="${6}"
-        SERVER_PATH="${7}"
-        SERVER_PASSWORD="${8}"
-        [ -z "${K8S_ENVIRONMENT_NAME}" ] && usage "cluster create <ENVIRONMENT_NAME> [CPU:2B] [RAM:2048] [DISK_SIZE_GB:30] [SERVER_PATH] [SERVER_PASSWORD]" && exit 1
-        [ -e "environments/${K8S_ENVIRONMENT_NAME}/.env" ] \
-            && kamatera_error "environment already exists, delete the environment's .env file to recreate" && exit 1
-        ! mkdir -p "environments/${K8S_ENVIRONMENT_NAME}" && kamatera_error "failed to create environment directory" && exit 1
-        ! kamatera_cluster_create_master_node "${K8S_ENVIRONMENT_NAME}" "${CPU:-2B}" "${RAM:-2048}" "${DISK_SIZE_GB:-30}" "${SERVER_PATH}" "${SERVER_PASSWORD}" \
-            && kamatera_error "failed to create cluster" && exit 1
-        kamatera_start_progress "Installing and initializing cluster components"
-        ! kamatera_cluster_install_storage "${K8S_ENVIRONMENT_NAME}" && kamatera_error failed to install storage && exit 1
-        kamatera_progress
-        ! kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}" --install && kamatera_error failed to deploy root chart && exit 1
-        kamatera_progress
-        while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
-            kubectl get pods --all-namespaces | grep ' Running ' | grep kubernetes-dashboard- &&\
-            kubectl get pods -n rook | grep rook-ceph-osd | grep ' Running ' &&\
-            kubectl get pods -n rook | grep rook-ceph-mgr | grep ' Running ' &&\
-            kubectl get pods -n rook | grep rook-ceph-mon | grep ' Running ' &&\
-            kubectl get pods -n kube-system | grep canal- | grep ' Running '
-        "; do
-            kamatera_progress
-            sleep 20
-        done
-        kamatera_debug "Creating load balancer node"
-        ! kamatera_cluster_create_loadbalancer_node "${K8S_ENVIRONMENT_NAME}" "2B" "2048" "20" \
-            && kamatera_error failed to create loadbalancer node && exit 1
-        kamatera_progress
-        kamatera_stop_progress Great Success!
+        [ -z "${K8S_ENVIRONMENT_NAME}" ] && usage "cluster create <ENVIRONMENT_NAME>" && exit 1
+        ! kamatera_create_default_cluster "${3}" && kamatera_error failed to create cluster && exit 1
         exit 0
 
     elif [ "${1} ${2}" == "cluster shell" ]; then
@@ -168,9 +139,10 @@ else
         export SSHPASS=$(cat "environments/${4}/secret-loadbalancer-pass")
         eval `cat environments/${K8S_ENVIRONMENT_NAME}/loadbalancer.env`
         ROOT_DOMAIN=`eval echo $(./read_yaml.py environments/${4}/values.yaml loadBalancer letsEncrypt rootDomain)`
-        echo "Load Balancer Public IP: ${IP}"
-        ! [ -z "${ROOT_DOMAIN}" ] && echo "Root Domain: $(echo ${ROOT_DOMAIN})"
-        ! [ -z "${ROOT_DOMAIN}" ] && echo "Kubernetes Dashboard: https://$(echo ${ROOT_DOMAIN})/dashboard/"
+        kamatera_info "Public IP: ${IP}"
+        kamatera_info "Dashboard: https://${IP}/dashboard/"
+        # ! [ -z "${ROOT_DOMAIN}" ] && echo "Root Domain: $(echo ${ROOT_DOMAIN})"
+        # ! [ -z "${ROOT_DOMAIN}" ] && echo "Kubernetes Dashboard: https://$(echo ${ROOT_DOMAIN})/dashboard/"
 
     elif [ "${1} ${2} ${3}" == "cluster loadbalancer ssh" ]; then
         [ -z "${4}" ] && usage "cluster loadbalancer ssh <ENVIRONMENT_NAME>" && exit 1
@@ -186,6 +158,14 @@ else
             && echo "storage is not installed" && exit 1
         export SSHPASS=$(cat "environments/${4}/secret-storage-pass")
         eval `cat environments/${4}/storage.env`
+        sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP
+
+    elif [ "${1} ${2} ${3}" == "cluster master ssh" ]; then
+        [ -z "${4}" ] && usage "cluster master ssh <ENVIRONMENT_NAME>" && exit 1
+        ! [ -e "environments/${4}/master.env" ] \
+            && echo "master is not installed" && exit 1
+        export SSHPASS=$(cat "environments/${4}/secret-master-pass")
+        eval `cat environments/${4}/master.env`
         sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP
 
     elif [ "${1} ${2}" == "cluster deploy" ]; then
@@ -208,8 +188,6 @@ else
         ./kamatera.sh cluster loadbalancer ssh
         ./kamatera.sh cluster loadbalancer web-ui
         ./kamatera.sh cluster loadbalancer reload
-        ./kamatera.sh cluster storage install
-        ./kamatera.sh cluster storage ssh
         ./kamatera.sh cluster node add
         ./kamatera.sh cluster shell
         exit 1

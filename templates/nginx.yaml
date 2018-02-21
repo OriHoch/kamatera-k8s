@@ -28,7 +28,7 @@ spec:
         kamateraloadbalancer: "true"
       containers:
       - name: nginx
-        image: nginx:alpine
+        image: nginx
         ports:
         - containerPort: 30080
         resources:

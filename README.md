@@ -57,7 +57,7 @@ Login with your Kamatera clientId and secret
 
 ## Create a new cluster
 
-Creates a full cluster, containing 1 master node and 1 load balancer node
+Creates a full cluster, containing 1 master node, 1 worker node and 1 load balancer node
 
 ```
 ./kamatera.sh cluster create <ENVIRONMENT_NAME>
@@ -151,6 +151,14 @@ Add http authentication to your elasticsearch by modifiying the location configu
       }
 ```
 
+The nginx password is stored in a kubernetes secret, you can modify the htpasswd file used:
+
+```
+htpasswd -bc secret-htpasswd-file username "$(read -sp password: && echo $REPLY)"
+kubectl delete secret nginx-htpasswd
+kubectl create secret generic nginx-htpasswd --from-file=secret-htpasswd-file
+```
+
 Apply the changes by reloading the loadbalancer
 
 ```
@@ -158,23 +166,7 @@ Apply the changes by reloading the loadbalancer
 ```
 
 
-## Add a worker node and schedule workloads on it
-
-If you inspect the elasticsearch pod, you will notice it's running on either the loadbalancer or master node, this is not optimal.
-
-Let's create a minimal worker node -
-
-```
-./kamatera.sh cluster node add <ENVIRONMENT_NAME> "2B" "2048" "30"
-```
-
-The parameters following environment name may be modified to specify required resources:
-
-* **CPU** - should be at least `2B` = 2 cores
-* **RAM** - should be at least `2048` = 2GB
-* **DISK_SIZE** - in GB
-
-See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
+## Schedule workloads on the worker nodes
 
 Recreate the elasticsearch pod, limited to worker nodes only
 
@@ -186,12 +178,26 @@ kubectl run elasticsearch --image=docker.elastic.co/elasticsearch/elasticsearch-
 kubectl rollout status deployment/elasticsearch && ./force_update.sh nginx
 ```
 
+You can add additional worker nodes of different types
+
+```
+./kamatera.sh cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
+```
+
+The parameters following environment name may be modified to specify required resources:
+
+* **CPU** - should be at least `2B` = 2 cores
+* **RAM** - should be at least `2048` = 2GB
+* **DISK_SIZE** - in GB
+
+See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
+
 
 ## Configure persistent storage for workloads
 
 Let's add persistent storage for the Elasticsearch deployment
 
-Create the elasticsearch [Rook filesystem](https://github.com/rook/rook/blob/master/Documentation/filesystem.md) configuration and the pod configuration in `./elasticsearch-filesystem.yaml`:
+Create the elasticsearch [Rook filesystem](https://github.com/rook/rook/blob/master/Documentation/filesystem.md) configuration and the pod configuration in `elasticsearch.yaml`:
 
 ```
 apiVersion: rook.io/v1alpha1
@@ -254,9 +260,11 @@ Deploy
 
 ```
 kubectl delete deployment/elasticsearch service/elasticsearch
-kubectl create -f ./elasticsearch.yaml
+kubectl create -f elasticsearch.yaml
 kubectl rollout status deployment/elasticsearch && ./force_update.sh nginx
 ```
+
+Verify that the filesystem was created - `kubectl get filesystem -n rook`
 
 To debug storage problems, use [Rook Toolbox](https://github.com/rook/rook/blob/master/Documentation/toolbox.md#rook-toolbox)
 
