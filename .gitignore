@@ -103,3 +103,4 @@ ENV/
 
 secret*
 .idea
+environments/

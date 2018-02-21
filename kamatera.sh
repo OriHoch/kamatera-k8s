@@ -93,7 +93,7 @@ else
     elif [ "${1} ${2}" == "cluster create" ]; then
         K8S_ENVIRONMENT_NAME="${3}"
         [ -z "${K8S_ENVIRONMENT_NAME}" ] && usage "cluster create <ENVIRONMENT_NAME>" && exit 1
-        ! kamatera_create_default_cluster "${3}" && kamatera_error failed to create cluster && exit 1
+        ! kamatera_create_default_cluster "${K8S_ENVIRONMENT_NAME}" && kamatera_error failed to create cluster && exit 1
         exit 0
 
     elif [ "${1} ${2}" == "cluster shell" ]; then

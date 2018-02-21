@@ -161,6 +161,7 @@ kamatera_cluster_create_base_node() {
 kamatera_cluster_create_worker_node() {
     # the kamatera environment name to add this node to
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     # server options (see kamatera_server_options.json)
     CPU="${2}"; RAM="${3}"; DISK_SIZE_GB="${4}"
     # optional path, details about the created server will be stored in files under this path
@@ -223,6 +224,7 @@ kamatera_cluster_create_worker_node() {
 kamatera_cluster_create_persistent_node() {
     # the kamatera environment name to add this node to
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     # server options (see kamatera_server_options.json)
     CPU="${2}"; RAM="${3}"; DISK_SIZE_GB="${4}"
     # details about the created server will be stored in files under this path
@@ -292,6 +294,7 @@ kamatera_cluster_create_persistent_node() {
 kamatera_cluster_create_master_node() {
     # the kamatera environment name to initialize for this master node
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     # server options (see kamatera_server_options.json)
     CPU="${2}"; RAM="${3}"; DISK_SIZE_GB="${4}"
     # details about the created server will be stored in files under this path
@@ -345,6 +348,7 @@ kamatera_cluster_create_master_node() {
 
 kamatera_cluster_loadbalancer_reload() {
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     NODE_LABEL="loadbalancer"
     eval `cat environments/${K8S_ENVIRONMENT_NAME}/${NODE_LABEL}.env`
     export SSHPASS=$(cat "environments/${K8S_ENVIRONMENT_NAME}/secret-${NODE_LABEL}-pass")
@@ -416,6 +420,7 @@ kamatera_cluster_get_nginx_service_ip() {
 kamatera_cluster_create_loadbalancer_node() {
     # the kamatera environment name to add this node to
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     # server options (see kamatera_server_options.json)
     CPU="${2}"; RAM="${3}"; DISK_SIZE_GB="${4}"
     # optional path, details about the created server will be stored in files under this path
@@ -491,29 +496,29 @@ kamatera_cluster_create_loadbalancer_node() {
 # exec cluster shell command and print output + return code
 kamatera_cluster_shell_exec() {
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     CMD="${@:2}"
     [ -z "${CMD}" ] && return 1
-    source switch_environment.sh "${K8S_ENVIRONMENT_NAME}" >/dev/null
-    eval "${CMD}"
+    bash -c "source switch_environment.sh ${K8S_ENVIRONMENT_NAME}; ${CMD}"
     return $?
 }
 
 # connect to the given environment and start a shell session or run commands
 kamatera_cluster_shell() {
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     CMD="${@:2}"
     if [ -z "${CMD}" ]; then
         # start an interactive bash shell
-        bash --rcfile <(echo "source switch_environment.sh ${K8S_ENVIRONMENT_NAME}; ${CMD}")
+        bash --rcfile <(echo "source switch_environment.sh ${K8S_ENVIRONMENT_NAME};")
         return $?
     else
         # run the given bash script
-        source switch_environment.sh "${K8S_ENVIRONMENT_NAME}" >/dev/null
         if [ "${KAMATERA_DEBUG}" == "1" ]; then
-            eval "${CMD}"
+            bash -c "source switch_environment.sh ${K8S_ENVIRONMENT_NAME}; ${CMD}"
             RES=$?
         else
-            eval "${CMD}" >> ./kamatera.log
+            bash -c "source switch_environment.sh ${K8S_ENVIRONMENT_NAME}; ${CMD}" >> ./kamatera.log
             RES=$?
         fi
         return $RES
@@ -522,21 +527,22 @@ kamatera_cluster_shell() {
 
 kamatera_cluster_shell_interactive() {
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     CMD="${@:2}"
     if [ -z "${CMD}" ]; then
         # start an interactive bash shell
-        bash --rcfile <(echo "source switch_environment.sh ${K8S_ENVIRONMENT_NAME}; ${CMD}")
+        bash --rcfile <(echo "source switch_environment.sh ${K8S_ENVIRONMENT_NAME};")
         return $?
     else
         # run the given bash script
-        source switch_environment.sh "${K8S_ENVIRONMENT_NAME}" >/dev/null
-        eval "${CMD}"
+        bash -c "source switch_environment.sh ${K8S_ENVIRONMENT_NAME}; ${CMD}"
         return $?
     fi
 }
 
 kamatera_cluster_install_helm() {
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     kamatera_start_progress "installing helm on ${K8S_ENVIRONMENT_NAME} environment"
     while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
         kubectl apply -f helm-tiller-rbac-config.yaml &&\
@@ -573,6 +579,7 @@ kamatera_cluster_test_storage_cluster() {
 
 kamatera_cluster_install_storage() {
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     kamatera_start_progress "installing storage"
     ! kamatera_cluster_test_storage_operator "${K8S_ENVIRONMENT_NAME}" \
         && ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "kubectl create -f rook-operator-0.6.yaml" \
@@ -580,7 +587,7 @@ kamatera_cluster_install_storage() {
     kamatera_progress
     while ! kamatera_cluster_test_storage_operator "${K8S_ENVIRONMENT_NAME}"; do sleep 10; kamatera_progress; done
     kamatera_progress
-    ! kamatera_cluster_test_storage_cluster \
+    ! kamatera_cluster_test_storage_cluster "${K8S_ENVIRONMENT_NAME}" \
         && ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "kubectl create -f rook-cluster-0.6.2.yaml" \
             && kamatera_error failed to install rook operator && return 1
     kamatera_progress
@@ -593,8 +600,9 @@ kamatera_cluster_install_storage() {
 
 kamatera_create_default_cluster() {
     K8S_ENVIRONMENT_NAME="${1}"
-    [ -e "environments/${K8S_ENVIRONMENT_NAME}/.env" ] \
-        && kamatera_error "environment already exists, delete the environment's .env file to recreate" && return 1
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
+    kamatera_debug "creating default cluster for ${K8S_ENVIRONMENT_NAME} environment"
+    [ -e "environments/${K8S_ENVIRONMENT_NAME}/.env" ] && kamatera_error "environment already exists" && return 1
     ! mkdir -p "environments/${K8S_ENVIRONMENT_NAME}" && kamatera_error "failed to create environment directory" && return 1
     ! kamatera_cluster_create_master_node "${K8S_ENVIRONMENT_NAME}" "2B" "2048" "30" \
         && kamatera_error "failed to create cluster" && return 1
@@ -609,6 +617,7 @@ kamatera_create_default_cluster() {
 
 kamatera_cluster_install_default_components() {
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     kamatera_start_progress "Installing and initializing cluster components on ${K8S_ENVIRONMENT_NAME} environment"
 
     kamatera_debug creating default worker node
@@ -663,6 +672,7 @@ kamatera_auth_login() {
 
 kamatera_cluster_deploy() {
     K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     kamatera_start_progress "deploying root chart to ${K8S_ENVIRONMENT_NAME} environment"
     while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
         kubectl apply -f helm-tiller-rbac-config.yaml;
