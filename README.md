@@ -72,7 +72,7 @@ When the cluster is created you should have the cluster configuration available 
 
 Check the output log of cluster create for your dashboard URL and credentials
 
-You can also create a secure tunnel to the kubernetes dashboard
+You can also create a secure tunnel to the kubernetes dashboard allowing to access it without a password
 
 ```
 ./kamatera.sh cluster web-ui <ENVIRONMENT_NAME>
@@ -318,10 +318,10 @@ Get the load balancer public IP to set DNS:
 ./kamatera.sh cluster loadbalancer info <ENVIRONMENT_NAME>
 ```
 
-If you made any changes to the load balancer configuration you should update by re-running the install command without any additional arguments:
+If you made any changes to the load balancer configuration you should reload
 
 ```
-./kamatera.sh cluster loadbalancer install <ENVIRONMENT_NAME>
+./kamatera.sh cluster loadbalancer reload <ENVIRONMENT_NAME>
 ```
 
 Traefik Web UI is not exposed publicly by default, you can access it via a proxy
