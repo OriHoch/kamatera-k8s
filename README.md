@@ -258,6 +258,30 @@ Apply the changes by reloading the loadbalancer
 
 ## Advanced topics
 
+
+### Node Management
+
+Get list of nodes
+
+```
+kubectl get nodes
+```
+
+Drain a problematic node
+
+```
+kubectl drain NODE_NAME
+```
+
+You can reboot the node servers from kamatera web UI, the cluster will be updated automatically
+
+Once node is back, allow to schedule workloads on it
+
+```
+kubectl uncordon NODE_NAME
+```
+
+
 ### Using Helm for Deployment
 
 The core infrastructure components are defined in `templates` directory as helm / kubernetes charts.
