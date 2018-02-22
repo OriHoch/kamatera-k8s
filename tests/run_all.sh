@@ -14,17 +14,20 @@ test_cluster() {
         && echo "failed to create cluster" && return 1
 
     echo "sleeping 30 seconds..."
-    ! ./kamatera.sh cluster shell ${TEST_ENVIRONMENT_NAME} kubectl run elasticsearch \
-                                  --image=docker.elastic.co/elasticsearch/elasticsearch-oss:6.2.1 \
-                                  --port=9200 --replicas=1 --env=discovery.type=single-node --expose \
-        && echo "Failed to deploy elasticsearch" && return 1
-    kubectl rollout status elasticsearch
-    kubectl port-forward `kubectl get pods | grep elasticsearch- | cut -d" " -f1 -` 9200 &
-    ! curl http://localhost:9200 && echo "curl failed" && return 1
+    sleep 30
+
+    ! tests/test_elasticsearch.sh ${TEST_ENVIRONMENT_NAME} && echo failed elasticsearch test && return 1
 
     echo "Adding worker node to the cluster"
     ! ./kamatera.sh cluster node add ${TEST_ENVIRONMENT_NAME} "2B" "2048" "30" \
         && echo "Failed to add worker node" && return 1
+
+    echo "sleeping 30 seconds..."
+
+    ! ./kamatera.sh cluster shell "${TEST_ENVIRONMENT_NAME}" "
+        NUM_NODES="'$'"(kubectl get nodes -o json --selector=kamateranode==true | jq -r '.items[].metadata.name' | wc -l) &&\
+        [ "'"${NUM_NODES}" == "2"'" ]
+    " && echo not enough worker nodes && return 1
 
     echo
     echo "Great Success!"

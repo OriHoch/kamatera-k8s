@@ -91,24 +91,110 @@ Start a shell connected to the relevant environment
 
 All kubectl commands will now run for this environment
 
-Let's start an Elasticsearch pod
+Start a tiny Elasticsearch pod on the cluster, limited to worker nodes only
 
 ```
-kubectl run elasticsearch --image=docker.elastic.co/elasticsearch/elasticsearch-oss:6.2.1 --port=9200 --replicas=1 --env=discovery.type=single-node --expose
+kubectl run elasticsearch --image=docker.elastic.co/elasticsearch/elasticsearch-oss:6.2.1 \
+                          --port=9200 --replicas=1 --env=discovery.type=single-node --expose \
+                          --requests=cpu=100m,memory=300Mi \
+                          --limits=cpu=300m,memory=600Mi \
+                          --env=ES_JAVA_OPTS="-Xms256m -Xmx256m" \
+                          --overrides='{"spec":{"template":{"spec":{"nodeSelector":{"kamateranode":"true"}}}}}'
 ```
 
-Wait for deployment to complete
+Wait for deployment to complete (might take a bit to download the elasticsearch image)
 
 ```
-kubectl rollout status elasticsearch
+kubectl rollout status deployment elasticsearch
 ```
+
+Check the pod status and logs
+
+```
+kubectl get pods
+kubectl logs ELASTICSEARCH_POD_NAME
+```
+
+
+## Add worker nodes
+
+You can add additional worker nodes of different types
+
+```
+./kamatera.sh cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
+```
+
+The parameters following environment name may be modified to specify required resources:
+
+* **CPU** - should be at least `2B` = 2 cores
+* **RAM** - should be at least `2048` = 2GB
+* **DISK_SIZE** - in GB
+
+See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
+
+Once the node is added and joined the cluster, workloads will automatically start to be scheduled on it.
+
+You should restrict workloads to the worker nodes only by setting the following node selector on the pods:
+
+```
+nodeSelector:
+    kamateranode: "true"
+```
+
+
+## Configure persistent storage for workloads
+
+You can add persistent storage using the pre-installed [Rook cluster](https://rook.io/)
+
+Add a [Rook filesystem](https://github.com/rook/rook/blob/master/Documentation/filesystem.md) to provide simple shared filesystem for persistent storage
+
+```
+apiVersion: rook.io/v1alpha1
+kind: Filesystem
+metadata:
+  name: elasticsearchfs
+  namespace: rook
+spec:
+  metadataPool:
+    replicated:
+      size: 3
+  dataPools:
+    - erasureCoded:
+       dataChunks: 2
+       codingChunks: 1
+  metadataServer:
+    activeCount: 1
+    activeStandby: true
+```
+
+And use it in a pod
+
+```
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        flexVolume:
+          driver: rook.io/rook
+          fsType: ceph
+          options:
+            fsName: data
+            clusterName: rook
+```
+
+Once the filesystem is deployed you can verify by running `kubectl get filesystem -n rook`
+
+To debug storage problems, use [Rook Toolbox](https://github.com/rook/rook/blob/master/Documentation/toolbox.md#rook-toolbox)
 
 
 ## Using port forwarding to access internal cluster services
 
-You can connect to any pod in the cluster using kubectl port-forward
+You can connect to any pod in the cluster using kubectl port-forward.
 
-Following will start a port forward with the elasticsearch pod
+This is a good option to connect to internal services without exposing them publically and dealing with authentication.
+
+Following will start a port from your local machine port 9200 to an elasticsearch pod on port 9200
 
 ```
 kubectl port-forward `kubectl get pods | grep elasticsearch- | cut -d" " -f1 -` 9200
@@ -121,7 +207,9 @@ Elasticsearch should be accessible at http://localhost:9200
 
 You can use the provided nginx pod to expose services
 
-Edit `templates/nginx-conf.yaml` and add the following under `default.conf` before the last closing curly bracket:
+Modify the nginx configuration in `templates/nginx-conf.yaml` according to the routing requirements
+
+For example, add the following under `default.conf` before the last closing curly bracket to route to the elasticsearch pod:
 
 ```
       location /elasticsearch {
@@ -142,7 +230,9 @@ Elasticsearch should be accessible at https://PUBLIC_IP/elasticsearch
 
 ## Simple service security using http authentication
 
-Add http authentication to your elasticsearch by modifiying the location configuration to:
+Add http authentication to your elasticsearch by adding `include /etc/nginx/conf.d/restricted.inc;` to the relevant location configuration
+
+For example:
 
 ```
       location /elasticsearch {
@@ -164,109 +254,6 @@ Apply the changes by reloading the loadbalancer
 ```
 ./kamatera.sh cluster loadbalancer reload <ENVIRONMENT_NAME>
 ```
-
-
-## Schedule workloads on the worker nodes
-
-Recreate the elasticsearch pod, limited to worker nodes only
-
-```
-kubectl delete deployment/elasticsearch service/elasticsearch
-kubectl run elasticsearch --image=docker.elastic.co/elasticsearch/elasticsearch-oss:6.2.1 \
-                          --port=9200 --replicas=1 --env=discovery.type=single-node --expose \
-                          --overrides='{"spec":{"template":{"spec":{"nodeSelector":{"kamateranode":"true"}}}}}'
-kubectl rollout status deployment/elasticsearch && ./force_update.sh nginx
-```
-
-You can add additional worker nodes of different types
-
-```
-./kamatera.sh cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
-```
-
-The parameters following environment name may be modified to specify required resources:
-
-* **CPU** - should be at least `2B` = 2 cores
-* **RAM** - should be at least `2048` = 2GB
-* **DISK_SIZE** - in GB
-
-See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
-
-
-## Configure persistent storage for workloads
-
-Let's add persistent storage for the Elasticsearch deployment
-
-Create the elasticsearch [Rook filesystem](https://github.com/rook/rook/blob/master/Documentation/filesystem.md) configuration and the pod configuration in `elasticsearch.yaml`:
-
-```
-apiVersion: rook.io/v1alpha1
-kind: Filesystem
-metadata:
-  name: elasticsearchfs
-  namespace: rook
-spec:
-  metadataPool:
-    replicated:
-      size: 3
-  dataPools:
-    - erasureCoded:
-       dataChunks: 2
-       codingChunks: 1
-  metadataServer:
-    activeCount: 1
-    activeStandby: true
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: elasticsearch
-spec:
-  ports:
-  - port: 9200
-    targetPort: 9200
-  selector:
-    app: elasticsearch
----
-apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  labels:
-    app: elasticsearch
-  name: elasticsearch
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: elasticsearch
-  template:
-    metadata:
-      labels:
-        app: elasticsearch
-    spec:
-      containers:
-      - env:
-        - name: discovery.type
-          value: single-node
-        image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.2.1
-        name: elasticsearch
-        ports:
-        - containerPort: 9200
-      nodeSelector:
-        kamateranode: "true"
-```
-
-Deploy
-
-```
-kubectl delete deployment/elasticsearch service/elasticsearch
-kubectl create -f elasticsearch.yaml
-kubectl rollout status deployment/elasticsearch && ./force_update.sh nginx
-```
-
-Verify that the filesystem was created - `kubectl get filesystem -n rook`
-
-To debug storage problems, use [Rook Toolbox](https://github.com/rook/rook/blob/master/Documentation/toolbox.md#rook-toolbox)
 
 
 ## Advanced topics
