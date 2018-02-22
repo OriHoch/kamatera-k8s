@@ -20,5 +20,5 @@ script:
     tail -f ./kamatera.log &
     tests/run_all.sh
   else
-    echo skipping deployment
+    echo skipping deployment.
   fi
