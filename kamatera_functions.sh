@@ -353,35 +353,40 @@ kamatera_cluster_loadbalancer_reload() {
     eval `cat environments/${K8S_ENVIRONMENT_NAME}/${NODE_LABEL}.env`
     export SSHPASS=$(cat "environments/${K8S_ENVIRONMENT_NAME}/secret-${NODE_LABEL}-pass")
     kamatera_start_progress "reloading loadbalancer configuration"
-    ./update_yaml.py '{"nginx":{"enabled":true,"htpasswdSecretName":"nginx-htpasswd"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+    ./update_yaml.py '{"loadBalancer":{"enabled":true},"nginx":{"enabled":true}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
     kamatera_debug_file "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
-    kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}"
+    NEEDS_SERVICE_IP_UPDATE="yes"
     kamatera_progress
-    NEEDS_SERVICE_IP_UPDATE="1"
-    NGINX_SERVICE_IP=$(kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" kubectl get service nginx -o json | jq -r .spec.clusterIP)
-    kamatera_debug "NGINX_SERVICE_IP=${NGINX_SERVICE_IP}"
-    kamatera_progress
-    if [ "${NGINX_SERVICE_IP}" != "null" ] && ! [ -z "${NGINX_SERVICE_IP}" ]; then
+    if NGINX_SERVICE_IP=$(kamatera_cluster_get_nginx_service_ip $K8S_ENVIRONMENT_NAME); then
         YAML_NGINX_IP=$(eval echo `./read_yaml.py environments/abcde/values.auto-updated.yaml loadBalancer nginxServiceClusterIP`)
         kamatera_progress
         if [ "${YAML_NGINX_IP}" == "${NGINX_SERVICE_IP}" ]; then
-            NEEDS_SERVICE_IP_UPDATE="0"
+            NEEDS_SERVICE_IP_UPDATE="no"
         fi
     fi
     kamatera_progress
-    if [ "${NEEDS_SERVICE_IP_UPDATE}" == "1" ]; then
+    if [ "${NEEDS_SERVICE_IP_UPDATE}" == "yes" ]; then
         kamatera_debug "deploying to create / update nginx service"
-        kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}" --install
-        kamatera_progress
-        sleep 10
-        kamatera_progress
-        NGINX_SERVICE_IP=$(kubectl get service nginx -o json | jq -r .spec.clusterIP)
-        kamatera_debug "updating cluster service ip in configuration to ${NGINX_SERVICE_IP}"
-        ./update_yaml.py '{"loadBalancer":{"nginxServiceClusterIP":"'$NGINX_SERVICE_IP'"}}' environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml
-        kamatera_debug_file "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+        while true; do
+            kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}" --install
+            kamatera_progress
+            sleep 10
+            kamatera_progress
+            if NGINX_SERVICE_IP=$(kamatera_cluster_get_nginx_service_ip $K8S_ENVIRONMENT_NAME); then
+                kamatera_debug "updating cluster service ip in configuration to ${NGINX_SERVICE_IP}"
+                ./update_yaml.py '{"loadBalancer":{"nginxServiceClusterIP":"'$NGINX_SERVICE_IP'"}}' environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml
+                kamatera_debug_file "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
+                break
+            fi
+            sleep 20
+            kamatera_progress
+        done
     fi
-    kamatera_debug "deploying to apply any cluster configuration changes..."
+    kamatera_progress
+    kamatera_debug "deploying to apply cluster configuration changes"
+    kamatera_progress
     kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}"
+    kamatera_progress
     kamatera_info "reloading traefik"
     kamatera_progress 5; kamatera_progress 5; kamatera_progress 5
     while ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "
@@ -412,8 +417,22 @@ kamatera_cluster_loadbalancer_reload() {
     return 0
 }
 
+init_k8s_func() {
+    K8S_ENVIRONMENT_NAME="${1}"
+    [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
+    echo "${K8S_ENVIRONMENT_NAME}"
+    return 0
+}
+
 kamatera_cluster_get_nginx_service_ip() {
-    kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" kubectl describe service nginx | grep 'IP:' | cut -d" " -f2-
+    ! K8SE="$(init_k8s_func $1)" && return 1
+    IP=$(kamatera_cluster_shell_exec "${K8SE}" "
+        kubectl get service nginx -o json | jq -r .spec.clusterIP
+    " 2>/dev/null)
+    [ "${IP}" == "null" ] && echo "" && return 1
+    [ -z "${IP}" ] && echo "" && return 1
+    echo "${IP}"
+    return 0
 }
 
 # creates a persistent node that will act as the loadbalancer for the environment
@@ -465,22 +484,6 @@ kamatera_cluster_create_loadbalancer_node() {
         kamatera_debug_file "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
         kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}"
         kamatera_progress
-
-        if [ $(./read_yaml.py environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml nginx enabled) != "true" ]; then
-
-            kamatera_debug "enabling and deploying nginx..."
-
-            kamatera_debug "getting nginx service ip..."
-            while true; do
-                NGINX_SERVICE_IP=$(echo $(kamatera_cluster_shell_exec "${K8S_ENVIRONMENT_NAME}" "kubectl describe service nginx | grep 'IP:' | cut -d"'" "'" -f2-"))
-                ! [ -z "${NGINX_SERVICE_IP}" ] && break
-                sleep 10
-                kamatera_progress
-            done
-            kamatera_debug "updating nginx service ip (${NGINX_SERVICE_IP}) in load balancer configuration..."
-            ./update_yaml.py '{"loadBalancer":{"nginxServiceClusterIP":"'${NGINX_SERVICE_IP}'"}}' "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
-            kamatera_debug_file "environments/${K8S_ENVIRONMENT_NAME}/values.auto-updated.yaml"
-        fi
         # if ! [ -z "${ENV_CONFIG}" ]; then
         #     echo "setting traefik environment variables..."
         #     ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "
@@ -499,7 +502,7 @@ kamatera_cluster_shell_exec() {
     [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     CMD="${@:2}"
     [ -z "${CMD}" ] && return 1
-    bash -c "source switch_environment.sh ${K8S_ENVIRONMENT_NAME}; ${CMD}"
+    bash -c "source switch_environment.sh ${K8S_ENVIRONMENT_NAME} >/dev/null; ${CMD}"
     return $?
 }
 
@@ -510,15 +513,15 @@ kamatera_cluster_shell() {
     CMD="${@:2}"
     if [ -z "${CMD}" ]; then
         # start an interactive bash shell
-        bash --rcfile <(echo "source switch_environment.sh ${K8S_ENVIRONMENT_NAME};")
+        bash --rcfile <(echo "source switch_environment.sh ${K8S_ENVIRONMENT_NAME} >/dev/null;")
         return $?
     else
         # run the given bash script
         if [ "${KAMATERA_DEBUG}" == "1" ]; then
-            bash -c "source switch_environment.sh ${K8S_ENVIRONMENT_NAME}; ${CMD}"
+            bash -c "source switch_environment.sh ${K8S_ENVIRONMENT_NAME} >/dev/null; ${CMD}"
             RES=$?
         else
-            bash -c "source switch_environment.sh ${K8S_ENVIRONMENT_NAME}; ${CMD}" >> ./kamatera.log
+            bash -c "source switch_environment.sh ${K8S_ENVIRONMENT_NAME} >/dev/null; ${CMD}" >> ./kamatera.log
             RES=$?
         fi
         return $RES
