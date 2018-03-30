@@ -1,13 +1,13 @@
 # Kamatera ❤ Kubernetes
 
-Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud](https://www.kamatera.com/express/compute/?scamp=k8sgithub){:target="_blank"}
+Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud](https://www.kamatera.com/express/compute/?scamp=k8sgithub)
 
 [![Build Status](https://travis-ci.org/OriHoch/kamatera-k8s.svg?branch=master)](https://travis-ci.org/OriHoch/kamatera-k8s)
 
 
 ## Installation
 
-Install system dependencies, on Debian/Ubuntu based systems:
+Install system dependencies on Debian/Ubuntu based systems:
 
 ```
 sudo apt-get update &&\
@@ -17,7 +17,7 @@ sudo easy_install -U pip &&\
 sudo pip install -U crcmod python-dotenv pyyaml
 ```
 
-Install system dependencies, on CentOS/RHEL based systems:
+Install system dependencies on CentOS/RHEL based systems:
 
 ```
 yum update update -y &&\
