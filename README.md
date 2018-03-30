@@ -1,13 +1,13 @@
 # Kamatera ❤ Kubernetes
 
-Step by step guide to setting up a kubernetes cluster using Kamatera cloud
+Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud](https://www.kamatera.com/express/compute/?scamp=k8sgithub){:target="_blank"}
 
 [![Build Status](https://travis-ci.org/OriHoch/kamatera-k8s.svg?branch=master)](https://travis-ci.org/OriHoch/kamatera-k8s)
 
 
 ## Installation
 
-Install system dependencies, following should work for Debian based systems:
+Install system dependencies, on Debian/Ubuntu based systems:
 
 ```
 sudo apt-get update &&\
@@ -16,6 +16,17 @@ sudo apt-get install curl gcc python-dev python-setuptools apt-transport-https a
 sudo easy_install -U pip &&\
 sudo pip install -U crcmod python-dotenv pyyaml
 ```
+
+Install system dependencies, on CentOS/RHEL based systems:
+
+```
+yum update update -y &&\
+yum install -y curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
+                     lsb-release openssh-client git bash jq sshpass openssh-client bash-completion &&\
+easy_install -U pip &&\
+pip install -U crcmod python-dotenv pyyaml
+```
+
 
 Install [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 
@@ -48,7 +59,7 @@ cd kamatera-k8s
 
 ## Login to Kamatera Cloud
 
-Login with your Kamatera clientId and secret
+Login with your Kamatera API clientId and secret
 
 ```
 ./kamatera.sh auth login
