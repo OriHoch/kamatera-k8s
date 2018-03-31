@@ -8,7 +8,7 @@
 
 ! which kubectl >/dev/null && echo "please install kubectl, see https://kubernetes.io/docs/tasks/tools/install-kubectl"
 ! which helm >/dev/null && echo "attempting automatic installation of helm" && curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get > get_helm.sh && chmod 700 get_helm.sh && ./get_helm.sh
-! which dotenv >/dev/null && echo "attempting automatic installation of python-dotenv" && sudo pip install python-dotenv
+! which dotenv >/dev/null && echo "attempting automatic installation of python-dotenv" && sudo pip install 'python-dotenv[cli]'
 ! which jq >/dev/null && echo "attempting automatic installation of jq" && sudo apt-get update && sudo apt-get install -y jq
 
 if which dotenv >/dev/null && which helm >/dev/null && which kubectl >/dev/null && which jq >/dev/null; then

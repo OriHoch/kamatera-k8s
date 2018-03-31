@@ -13,7 +13,7 @@ RUN apt-get update -qqy && apt-get install -qqy \
         sshpass \
         openssh-client \
     && easy_install -U pip && \
-    pip install -U crcmod python-dotenv pyyaml
+    pip install -U crcmod 'python-dotenv[cli]' pyyaml
 
 VOLUME ["/pwd"]
 

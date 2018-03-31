@@ -14,7 +14,7 @@ sudo apt-get update &&\
 sudo apt-get install curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
                      lsb-release openssh-client git bash jq sshpass openssh-client bash-completion &&\
 sudo easy_install -U pip &&\
-sudo pip install -U crcmod python-dotenv pyyaml
+sudo pip install -U crcmod 'python-dotenv[cli]' pyyaml
 ```
 
 Install system dependencies on CentOS/RHEL based systems:
@@ -24,7 +24,7 @@ yum update update -y &&\
 yum install -y curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
                      lsb-release openssh-client git bash jq sshpass openssh-client bash-completion &&\
 easy_install -U pip &&\
-pip install -U crcmod python-dotenv pyyaml
+pip install -U crcmod 'python-dotenv[cli]' pyyaml
 ```
 
 
