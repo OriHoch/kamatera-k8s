@@ -10,20 +10,20 @@ Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud](htt
 Install system dependencies on Debian/Ubuntu based systems:
 
 ```
-sudo apt-get update &&\
+sudo apt-get update
 sudo apt-get install curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
-                     lsb-release openssh-client git bash jq sshpass openssh-client bash-completion &&\
-sudo easy_install -U pip &&\
+                     lsb-release openssh-client git bash jq sshpass openssh-client bash-completion
+sudo easy_install -U pip
 sudo pip install -U crcmod python-dotenv pyyaml
 ```
 
 Install system dependencies on CentOS/RHEL based systems:
 
 ```
-yum update update -y &&\
+yum update -y
 yum install -y curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
-                     lsb-release openssh-client git bash jq sshpass openssh-client bash-completion &&\
-easy_install -U pip &&\
+                     lsb-release openssh-client git bash jq sshpass openssh-client bash-completion
+easy_install -U pip
 pip install -U crcmod python-dotenv pyyaml
 ```
 
@@ -31,16 +31,16 @@ pip install -U crcmod python-dotenv pyyaml
 Install [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 
 ```
-curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl &&\
-chmod +x ./kubectl &&\
+curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+chmod +x ./kubectl
 sudo mv ./kubectl /usr/local/bin/kubectl
 ```
 
 Install [Helm](https://github.com/kubernetes/helm/blob/master/docs/install.md)
 
 ```
-curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get > get_helm.sh &&\
-chmod 700 get_helm.sh &&\
+curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get > get_helm.sh
+chmod 700 get_helm.sh
 ./get_helm.sh
 ```
 
