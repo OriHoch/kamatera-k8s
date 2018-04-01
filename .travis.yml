@@ -11,7 +11,7 @@ script:
     sudo apt-get install -qqy curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
                               lsb-release openssh-client git bash jq sshpass openssh-client &&\
     sudo easy_install -U pip &&\
-    sudo pip install -U crcmod python-dotenv pyyaml &&\
+    sudo pip install -U crcmod 'python-dotenv[cli]' pyyaml &&\
     curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl &&\
     chmod +x ./kubectl &&\
     sudo mv ./kubectl /usr/local/bin/kubectl &&\
