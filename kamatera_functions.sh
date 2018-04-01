@@ -141,9 +141,9 @@ kamatera_cluster_create_base_node() {
         if ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$SERVER_IP -- "
             swapoff -a && sed -i '/ swap / s/^/#/' /etc/fstab &&\
             echo "'"'"127.0.0.1 "'`'"hostname"'`'""'"'" >> /etc/hosts &&\
-            while ! apt-get update; do sleep 5; done &&\
-            while ! apt-get install -fy; do sleep 5; done &&\
-            while ! apt-get install -y docker.io apt-transport-https; do sleep 5; done &&\
+            while ! apt-get update; do sleep 1; done &&\
+            while ! apt-get install -fy; do sleep 1; done &&\
+            while ! apt-get install -y docker.io apt-transport-https; do sleep 1; done &&\
             curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - &&\
             echo 'deb http://apt.kubernetes.io/ kubernetes-xenial main' > /etc/apt/sources.list.d/kubernetes.list &&\
             sleep 5 && apt-get update && sleep 10 &&\
@@ -214,7 +214,7 @@ kamatera_cluster_create_worker_node() {
                     "kubectl get nodes | tee /dev/stderr | grep ' Ready ' | grep '${K8S_ENVIRONMENT_NAME}${NODE_LABEL}${NODE_ID}'"
             do
                 kamatera_progress
-                sleep 15
+                sleep 1
             done
             if [ "${DISABLE_NODE_TAG}" != "1" ]; then
                 kamatera_debug "tagging as worker node..."
@@ -222,7 +222,7 @@ kamatera_cluster_create_worker_node() {
                         kubectl label node "${K8S_ENVIRONMENT_NAME}${NODE_LABEL}${NODE_ID}" "kamateranode=true"
                 do
                     kamatera_progress
-                    sleep 15
+                    sleep 1
                 done
             fi
             kamatera_progress
@@ -273,7 +273,7 @@ kamatera_cluster_create_persistent_node() {
                 kubectl get nodes | tee /dev/stderr | grep ' Ready ' | grep ${K8S_ENVIRONMENT_NAME}${NODE_LABEL}
             "; do
                 kamatera_progress
-                sleep 20
+                sleep 2
             done
         fi
         SERVER_NAME=$(cat "${SERVER_PATH}/name")
@@ -297,7 +297,7 @@ kamatera_cluster_create_persistent_node() {
                 kubectl label node ${K8S_ENVIRONMENT_NAME}${NODE_LABEL}${NODE_ID} kamatera${NODE_LABEL}=true
             "; do
                 kamatera_progress
-                sleep 20
+                sleep 2
             done
         fi
         kamatera_stop_progress "${NODE_LABEL} node created successfully"
@@ -349,7 +349,7 @@ kamatera_cluster_create_master_node() {
         sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "
             export KUBECONFIG=/etc/kubernetes/admin.conf; \
             while ! kubectl get pods --all-namespaces | tee /dev/stderr | grep kube-dns- | grep Running; do
-                echo .; sleep 10;
+                echo .; sleep 1;
             done
         " >> ./kamatera.log 2>&1
         kamatera_progress
@@ -576,7 +576,7 @@ kamatera_cluster_install_helm() {
         kubectl get pods -n kube-system | grep tiller-deploy- | grep ' Running ' &&\
         helm version
     "; do
-        sleep 20
+        sleep 2
         kamatera_progress
     done
     sleep 20
