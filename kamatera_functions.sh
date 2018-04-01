@@ -186,21 +186,32 @@ kamatera_cluster_create_worker_node() {
         SERVER_IP=$(cat ${SERVER_PATH}/ip)
         export SSHPASS=$(cat ${SERVER_PATH}/password)
         SERVER_NAME=$(cat "${SERVER_PATH}/name")
+        NODE_ID=$(echo "${SERVER_NAME}" | cut -d" " -f1 - | cut -d"-" -f3 -)
         kamatera_debug "SERVER_NAME=${SERVER_NAME}"
+        kamatera_debug "NODE_ID=${NODE_ID}"
         if [ -e "environments/${K8S_ENVIRONMENT_NAME}/.env" ]; then
             kamatera_debug "joining the cluster using kubeadm"
-            if ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$SERVER_IP -- "
-                $(cat environments/${K8S_ENVIRONMENT_NAME}/secret-kubeadm-init.log | grep 'kubeadm join --token')
-            " >> ./kamatera.log 2>&1; then
+            KUBEADM_JOIN_CMD="$(cat environments/${K8S_ENVIRONMENT_NAME}/secret-kubeadm-init.log | grep 'kubeadm join')"
+            kamatera_debug "KUBEADM_JOIN_CMD=${KUBEADM_JOIN_CMD}"
+            if ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$SERVER_IP \
+                         -- "${KUBEADM_JOIN_CMD}" >> ./kamatera.log 2>&1
+            then
                 kamatera_error "Failed to initialize kubeadm"
                 exit 1
             fi
             kamatera_progress
+            sleep 1
+            while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" \
+                    "kubectl get nodes | tee /dev/stderr | grep ' Ready ' | grep '${K8S_ENVIRONMENT_NAME}${NODE_LABEL}${NODE_ID}'"
+            do
+                kamatera_progress
+                sleep 15
+            done
             if [ "${DISABLE_NODE_TAG}" != "1" ]; then
                 kamatera_debug "tagging as worker node..."
-                NODE_ID=$(echo "${SERVER_NAME}" | cut -d" " -f1 - | cut -d"-" -f3 -)
-                kamatera_debug "NODE_ID=${NODE_ID}"
-                while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl label node "${K8S_ENVIRONMENT_NAME}${NODE_LABEL}${NODE_ID}" "kamateranode=true"; do
+                while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" \
+                        kubectl label node "${K8S_ENVIRONMENT_NAME}${NODE_LABEL}${NODE_ID}" "kamateranode=true"
+                do
                     kamatera_progress
                     sleep 15
                 done
