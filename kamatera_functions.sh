@@ -134,6 +134,7 @@ kamatera_cluster_create_base_node() {
             swapoff -a && sed -i '/ swap / s/^/#/' /etc/fstab &&\
             echo "'"'"127.0.0.1 "'`'"hostname"'`'""'"'" >> /etc/hosts &&\
             while ! apt-get update; do sleep 5; done &&\
+            while ! apt-get install -fy; do sleep 5; done &&\
             while ! apt-get install -y docker.io apt-transport-https; do sleep 5; done &&\
             curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - &&\
             echo 'deb http://apt.kubernetes.io/ kubernetes-xenial main' > /etc/apt/sources.list.d/kubernetes.list &&\
