@@ -15,7 +15,7 @@ script:
        curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl &&\
        chmod +x ./kubectl &&\
        sudo mv ./kubectl /usr/local/bin/kubectl &&\
-       kubectl version &&\
+       kubectl version --client &&\
        ( curl -L https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | sudo bash ) &&\
        helm version --client &&\
        openssl aes-256-cbc -K $encrypted_4fa8bbe6dd69_key -iv $encrypted_4fa8bbe6dd69_iv -in ./kamatera-secret.env.enc -out ./secret-kamatera.env -d &&\
