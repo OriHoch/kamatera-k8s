@@ -7,21 +7,26 @@ script:
 - |
   if [ "${TRAVIS_BRANCH}" == "debugging-travis-failure" ] && [ "${TRAVIS_PULL_REQUEST}" == "false" ] &&\
      ! echo "${TRAVIS_COMMIT_MESSAGE}" | grep -- --no-deploy; then
-    sudo apt-get update -qq &&\
-    sudo apt-get install -qqy curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
-                              lsb-release openssh-client git bash jq sshpass openssh-client &&\
-    sudo easy_install -U pip &&\
-    sudo pip install -U crcmod 'python-dotenv[cli]' pyyaml &&\
-    curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl &&\
-    chmod +x ./kubectl &&\
-    sudo mv ./kubectl /usr/local/bin/kubectl &&\
-    kubectl version &&\
-    curl -L https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | sudo bash &&\
-    helm version --client &&\
-    openssl aes-256-cbc -K $encrypted_4fa8bbe6dd69_key -iv $encrypted_4fa8bbe6dd69_iv -in ./kamatera-secret.env.enc -out ./secret-kamatera.env -d &&\
-    touch ./kamatera.log
-    tail -f ./kamatera.log &
-    tests/run_all.sh
+    if sudo apt-get update -qq &&\
+       sudo apt-get install -qqy curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
+                                lsb-release openssh-client git bash jq sshpass openssh-client &&\
+       sudo easy_install -U pip &&\
+       sudo pip install -U crcmod 'python-dotenv[cli]' pyyaml &&\
+       curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl &&\
+       chmod +x ./kubectl &&\
+       sudo mv ./kubectl /usr/local/bin/kubectl &&\
+       kubectl version &&\
+       ( curl -L https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | sudo bash ) &&\
+       helm version --client &&\
+       openssl aes-256-cbc -K $encrypted_4fa8bbe6dd69_key -iv $encrypted_4fa8bbe6dd69_iv -in ./kamatera-secret.env.enc -out ./secret-kamatera.env -d &&\
+       touch ./kamatera.log; then
+        tail -f ./kamatera.log &
+        tests/run_all.sh
+    else
+        echo failed to setup test environment
+        false
+    fi
   else
     echo skipping deployment.
+    true
   fi
