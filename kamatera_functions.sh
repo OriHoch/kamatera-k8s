@@ -60,6 +60,14 @@ kamatera_error() {
     echo "ERROR: ${@}" | tee -a ./kamatera.log
 }
 
+generate_kamatera_server_password() {
+    local a=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz'; print(''.join(random.sample(s,5)))")
+    local b=$(python -c "import random; s='01234567890'; print(''.join(random.sample(s,2)))")
+    local c=$(python -c "import random; s='ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,5)))")
+    local d=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,8)))")
+    echo "${a}${b}${c}${d}"
+}
+
 # base node - used to create all other nodes, a base node doesn't require an environment
 kamatera_cluster_create_base_node() {
     # server options (see kamatera_server_options.json)
@@ -72,7 +80,7 @@ kamatera_cluster_create_base_node() {
     SERVER_PASSWORD="${6}"
     (
         if [ -z "${SERVER_PASSWORD}" ]; then
-            password=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,20)))")
+            password=$(generate_kamatera_server_password)
         else
             password="${SERVER_PASSWORD}"
             echo "using server password from argument"
@@ -478,7 +486,7 @@ kamatera_cluster_create_loadbalancer_node() {
         kamatera_debug "enabling and deploying nginx"
         if ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl describe secret nginx-htpasswd; then
             kamatera_debug "creating nginx http auth secrets"
-            password=$(python -c "import random; s='abcdefghijklmnopqrstuvwxyz01234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ'; print(''.join(random.sample(s,20)))")
+            password=$(generate_kamatera_server_password)
             ! [ -e environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd ] &&\
                 htpasswd -bc environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd superadmin "${password}"
             kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl create secret generic nginx-htpasswd --from-file=environments/${K8S_ENVIRONMENT_NAME}/secret-nginx-htpasswd

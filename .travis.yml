@@ -5,7 +5,8 @@ services:
 - docker
 script:
 - |
-  if ! echo "${TRAVIS_COMMIT_MESSAGE}" | grep -- --no-deploy;
+  if [ "${TRAVIS_BRANCH}" == "master" ] && [ "${TRAVIS_PULL_REQUEST}" == "false" ] &&\
+     ! echo "${TRAVIS_COMMIT_MESSAGE}" | grep -- --no-deploy;
   then
     if sudo apt-get update -qq &&\
        sudo apt-get install -qqy curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
