@@ -1,12 +1,12 @@
 # Kamatera ❤ Kubernetes
 
-Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud](https://www.kamatera.com/express/compute/?scamp=k8sgithub)
+Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud Platform](https://www.kamatera.com/express/compute/?scamp=k8sgithub).
 
 [![Build Status](https://travis-ci.org/OriHoch/kamatera-k8s.svg?branch=master)](https://travis-ci.org/OriHoch/kamatera-k8s)
 
 ## Installation
 
-Login to [Kamatera Console](https://console.kamatera.com), Create new tiny server configuration running Debian/Ubuntu or CentOS and connect to it via ssh.
+Login to [Kamatera Console](https://www.kamatera.com/express/compute/?scamp=k8sgithub), Create new tiny server configuration running Debian/Ubuntu or CentOS and connect to it via ssh.
 
 Install system dependencies on Debian/Ubuntu based systems:
 
