@@ -4,11 +4,16 @@ Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud Plat
 
 [![Build Status](https://travis-ci.org/OriHoch/kamatera-k8s.svg?branch=master)](https://travis-ci.org/OriHoch/kamatera-k8s)
 
+
 ## Installation
 
 Login to [Kamatera Console](https://www.kamatera.com/express/compute/?scamp=k8sgithub), Create new tiny server configuration running Debian/Ubuntu or CentOS and connect to it via ssh.
 
-Install system dependencies on Debian/Ubuntu based systems:
+### System dependencies
+
+Install some basic dependencies to manage the cluster from the CLI
+
+#### Debian/Ubuntu based systems
 
 ```
 sudo apt-get update
@@ -18,7 +23,7 @@ sudo easy_install -U pip
 sudo pip install -U crcmod 'python-dotenv[cli]' pyyaml
 ```
 
-Install system dependencies on CentOS/RHEL based systems:
+#### CentOS/RHEL based systems
 
 ```
 yum update -y
@@ -28,8 +33,11 @@ easy_install -U pip
 pip install -U crcmod 'python-dotenv[cli]' pyyaml
 ```
 
+### Install Kubectl and Helm
 
-Install [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+Standard Kubernetes tools to manage the cluster and deployments
+
+Install latest [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 
 ```
 curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
@@ -37,7 +45,7 @@ chmod +x ./kubectl
 sudo mv ./kubectl /usr/local/bin/kubectl
 ```
 
-Install [Helm](https://github.com/kubernetes/helm/blob/master/docs/install.md)
+Install latest [Helm](https://github.com/kubernetes/helm/blob/master/docs/install.md)
 
 ```
 curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get > get_helm.sh
@@ -45,18 +53,19 @@ chmod 700 get_helm.sh
 ./get_helm.sh
 ```
 
-Clone the `kamatera-k8s` repository
+## Create your Kamatera Kubernetes project
+
+Clone the `kamatera-k8s` repository to a new project directory
 
 ```
-git clone https://github.com/OriHoch/kamatera-k8s.git
+git clone https://github.com/OriHoch/kamatera-k8s.git my-kamatera-k8s-project
 ```
 
-All the following commands should run from the kamatera-k8s directory
+All the following commands should run from the kamatera-k8s project directory
 
 ```
-cd kamatera-k8s
+cd my-kamatera-k8s-project
 ```
-
 
 ## Login to Kamatera Cloud
 
@@ -66,10 +75,17 @@ Login with your Kamatera API clientId and secret
 ./kamatera.sh auth login
 ```
 
+## Review cluster settings
+
+Review and modify (if needed) settings in `constants.sh`
+
+Run `./kamatera.sh update server_options` to update the available options in `kamatera_server_options.json`
+
+Refer to `kamatera_server_options.json` for the latest available settings
 
 ## Create a new cluster
 
-Creates a full cluster, containing 1 master node, 1 worker node and 1 load balancer node
+Creates a full cluster, by default, containing 1 master node, 1 worker node and 1 load balancer node
 
 ```
 ./kamatera.sh cluster create <ENVIRONMENT_NAME>
@@ -354,3 +370,14 @@ Traefik Web UI is not exposed publicly by default, you can access it via a proxy
 ```
 
 Load balancer Web UI is available at http://localhost:3033/
+
+
+### Accessing the kamatera kubernetes context directly
+
+If you want to integrate with external kubernetes tools / code, you may want to access the cluster directly
+
+The kamatera kubernetes connection is based on a custom kubernetes config file, stored in `environments/<ENVIRONMENT_NAME>/secret-admin.conf`
+
+To make kubectl use this file, export KUBECONFIG environment variable:
+
+```export KUBECONFIG=`pwd`/environments/${K8S_ENVIRONMENT_NAME}/secret-admin.conf```

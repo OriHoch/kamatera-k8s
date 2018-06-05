@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+source constants.sh
 source kamatera_functions.sh
 
 if [ "${1} ${2}" == "auth login" ]; then
@@ -100,6 +101,11 @@ else
         [ -z "${3}" ] && usage "cluster shell <ENVIRONMENT_NAME>" && exit 1
         ! [ -e "environments/${3}/.env" ] && echo "invalid environment: ${3}" && exit 1
         kamatera_cluster_shell_interactive "${3}" "${@:4}"
+        exit $?
+
+    elif [ "${1} ${2}" == "update server_options" ]; then
+        kamatera_curl https://console.kamatera.com/service/server > ./kamatera_server_options.json
+        echo Updated kamatera_server_options.json
         exit $?
 
     elif [ "${1} ${2} ${3}" == "cluster node add" ]; then

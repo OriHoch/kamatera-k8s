@@ -90,8 +90,10 @@ kamatera_cluster_create_base_node() {
         name="${NODE_PREFIX}-$(python -c 'import uuid;print(str(uuid.uuid1()).replace("-",""))')"
         kamatera_debug "name=${name}"
         echo "${name}" > "${SERVER_PATH}/name"
-        params="datacenter=IL&name=${name}&password=${password}&cpu=${CPU}&ram=${RAM}&billing=hourly"
-        params+="&power=1&disk_size_0=${DISK_SIZE_GB}&disk_src_0=IL%3A6000C298bbb2d3b6e9721f4f4f3c5bf0&network_name_0=wan"
+        params="datacenter=${DEFAULT_DATACENTER}&name=${name}&password=${password}&cpu=${CPU}&ram=${RAM}&billing=${DEFAULT_BILLING}"
+        rm ./kamatera_server_options.json; ./kamatera.sh update server_options
+        DISK_IMAGE=$(echo '{'`cat ./kamatera_server_options.json | jq -S '.diskImages.'${DEFAULT_DATACENTER} | grep -C1 '"description": "'${DEFAULT_DISK_DESCRIPTION}'"' | grep '"id": "'${DEFAULT_DATACENTER}':'`'"foo":"bar"}' | jq -r .id)
+        params+="&power=1&disk_size_0=${DISK_SIZE_GB}&disk_src_0=${DISK_IMAGE/:/%3A}&network_name_0=wan"
         kamatera_debug "params=${params}"
         echo "${params}" > "${SERVER_PATH}/params"
         RES=$(kamatera_curl -X POST -d "${params}" "https://console.kamatera.com/service/server")
@@ -356,9 +358,10 @@ kamatera_cluster_create_master_node() {
         kamatera_debug "updating environment values"
         sshpass -e scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP:/etc/kubernetes/admin.conf environments/${K8S_ENVIRONMENT_NAME}/secret-admin.conf >> ./kamatera.log 2>&1
         kamatera_progress
-        # uncomment following lines to allow scheduling workloads on the master, not recommended!
-        # kamatera_debug "updating master node taints"
-        # kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl taint nodes --all node-role.kubernetes.io/master-
+        if [ "${DEFAULT_MASTER_ALLOW_SCHEDULING}" == "yes" ]; then
+            kamatera_debug "updating master node taints"
+            kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" kubectl taint nodes --all node-role.kubernetes.io/master-
+        fi
         echo "MAIN_SERVER_IP=${IP}" >> environments/${K8S_ENVIRONMENT_NAME}/.env
         kamatera_stop_progress "suuccessfully created master node"
         exit 0
@@ -627,7 +630,7 @@ kamatera_create_default_cluster() {
     kamatera_debug "creating default cluster for ${K8S_ENVIRONMENT_NAME} environment"
     [ -e "environments/${K8S_ENVIRONMENT_NAME}/.env" ] && kamatera_error "environment already exists" && return 1
     ! mkdir -p "environments/${K8S_ENVIRONMENT_NAME}" && kamatera_error "failed to create environment directory" && return 1
-    ! kamatera_cluster_create_master_node "${K8S_ENVIRONMENT_NAME}" "2B" "2048" "30" \
+    ! kamatera_cluster_create_master_node "${K8S_ENVIRONMENT_NAME}" "${DEFAULT_MASTER_NODE_CPU}" "${DEFAULT_MASTER_NODE_RAM}" "${DEFAULT_MASTER_NODE_DISK_SIZE_GB}" \
         && kamatera_error "failed to create cluster" && return 1
     if [ "${SKIP_COMPONENTS}" != "yes" ]; then
         ! kamatera_cluster_install_default_components "${K8S_ENVIRONMENT_NAME}" \
@@ -643,41 +646,51 @@ kamatera_cluster_install_default_components() {
     [ -z "${K8S_ENVIRONMENT_NAME}" ] && kamatera_error missing K8S_ENVIRONMENT_NAME && return 1
     kamatera_start_progress "Installing and initializing cluster components on ${K8S_ENVIRONMENT_NAME} environment"
 
-    kamatera_debug creating default worker node
-    ! kamatera_cluster_create_worker_node "${K8S_ENVIRONMENT_NAME}" "2B" "2048" "30" "" "node" \
-        && kamatera_error failed to create worker node && exit 1
-    kamatera_progress
-
-    kamatera_debug installing helm
-    ! kamatera_cluster_install_helm "${K8S_ENVIRONMENT_NAME}" \
-        && kamatera_error failed to install helm && exit 1
-    kamatera_progress
-
-    kamatera_debug installing storage
-    ! kamatera_cluster_install_storage "${K8S_ENVIRONMENT_NAME}" \
-        && kamatera_error failed to install storage && exit 1
-    kamatera_progress
-
-    kamatera_debug deploying root chart
-    ! kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}" --install \
-        && kamatera_error failed to deploy root chart && exit 1
-    kamatera_progress
-
-    while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
-        kubectl get pods --all-namespaces | grep ' Running ' | grep kubernetes-dashboard- &&\
-        kubectl get pods -n rook | grep rook-ceph-osd | grep ' Running ' &&\
-        kubectl get pods -n rook | grep rook-ceph-mgr | grep ' Running ' &&\
-        kubectl get pods -n rook | grep rook-ceph-mon | grep ' Running ' &&\
-        kubectl get pods -n kube-system | grep canal- | grep ' Running '
-    "; do
+    if [ "${DEFAULT_CLUSTER_SKIP_WORKER_NODE}" != "yes" ]; then
+        kamatera_debug creating default worker node
+        ! kamatera_cluster_create_worker_node "${K8S_ENVIRONMENT_NAME}" "${DEFAULT_WORKER_NODE_CPU}" "${DEFAULT_WORKER_NODE_RAM}" "${DEFAULT_WORKER_NODE_DISK_SIZE_GB}" "" "node" \
+            && kamatera_error failed to create worker node && exit 1
         kamatera_progress
-        sleep 20
-    done
+    fi
 
-    kamatera_debug "Creating load balancer node"
-    ! kamatera_cluster_create_loadbalancer_node "${K8S_ENVIRONMENT_NAME}" "2B" "2048" "20" \
-        && kamatera_error failed to create loadbalancer node && exit 1
-    kamatera_progress
+    if [ "${DEFAULT_CLUSTER_SKIP_HELM}" != "yes" ]; then
+        kamatera_debug installing helm
+        ! kamatera_cluster_install_helm "${K8S_ENVIRONMENT_NAME}" \
+            && kamatera_error failed to install helm && exit 1
+        kamatera_progress
+    fi
+
+    if [ "${DEFAULT_CLUSTER_SKIP_STORAGE}" != "yes" ]; then
+        kamatera_debug installing storage
+        ! kamatera_cluster_install_storage "${K8S_ENVIRONMENT_NAME}" \
+            && kamatera_error failed to install storage && exit 1
+        kamatera_progress
+    fi
+
+    if [ "${DEFAULT_CLUSTER_SKIP_ROOT_CHART}" != "yes" ]; then
+        kamatera_debug deploying root chart
+        ! kamatera_cluster_deploy "${K8S_ENVIRONMENT_NAME}" --install \
+            && kamatera_error failed to deploy root chart && exit 1
+        kamatera_progress
+    fi
+
+    if [ "${DEFAULT_CLUSTER_SKIP_LOAD_BALANCER}" != "yes" ]; then
+        while ! kamatera_cluster_shell "${K8S_ENVIRONMENT_NAME}" "
+            kubectl get pods --all-namespaces | grep ' Running ' | grep kubernetes-dashboard- &&\
+            kubectl get pods -n rook | grep rook-ceph-osd | grep ' Running ' &&\
+            kubectl get pods -n rook | grep rook-ceph-mgr | grep ' Running ' &&\
+            kubectl get pods -n rook | grep rook-ceph-mon | grep ' Running ' &&\
+            kubectl get pods -n kube-system | grep canal- | grep ' Running '
+        "; do
+            kamatera_progress
+            sleep 20
+        done
+
+        kamatera_debug "Creating load balancer node"
+        ! kamatera_cluster_create_loadbalancer_node "${K8S_ENVIRONMENT_NAME}" "${DEFAULT_LOAD_BALANCER_NODE_CPU}" "${DEFAULT_LOAD_BALANCER_NODE_RAM}" "${DEFAULT_LOAD_BALANCER_NODE_DISK_SIZE_GB}" \
+            && kamatera_error failed to create loadbalancer node && exit 1
+        kamatera_progress
+    fi
 
     kamatera_stop_progress Great Success!
 }
