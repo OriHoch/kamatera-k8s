@@ -13,7 +13,7 @@ Login to [Kamatera Console](https://www.kamatera.com/express/compute/?scamp=k8sg
 
 Install some basic dependencies to manage the cluster from the CLI
 
-#### Debian/Ubuntu based systems
+#### Ubuntu 16.04 LTS based systems
 
 ```
 sudo apt-get update
@@ -23,7 +23,7 @@ sudo easy_install -U pip
 sudo pip install -U crcmod 'python-dotenv[cli]' pyyaml
 ```
 
-#### CentOS/RHEL based systems
+#### CentOS/RHEL 7 based systems
 
 ```
 yum update -y
