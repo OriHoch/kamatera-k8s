@@ -340,8 +340,8 @@ kamatera_cluster_create_master_node() {
         kamatera_debug "installing networking"
         if ! sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "
             export KUBECONFIG=/etc/kubernetes/admin.conf &&\
-            kubectl apply -f https://raw.githubusercontent.com/projectcalico/canal/master/k8s-install/1.7/rbac.yaml  --validate=false &&\
-            kubectl apply -f https://raw.githubusercontent.com/projectcalico/canal/master/k8s-install/1.7/canal.yaml  --validate=false
+            kubectl apply -f https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/canal/rbac.yaml &&\
+            kubectl apply -f https://docs.projectcalico.org/v3.3/getting-started/kubernetes/installation/hosted/canal/canal.yaml
         " >> ./kamatera.log 2>&1; then
             kamatera_error "Failed to install networking"
             exit 1
