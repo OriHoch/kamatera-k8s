@@ -350,7 +350,7 @@ kamatera_cluster_create_master_node() {
         kamatera_debug "waiting for kube-dns"
         sshpass -e ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$IP -- "
             export KUBECONFIG=/etc/kubernetes/admin.conf; \
-            while ! kubectl get pods --all-namespaces | tee /dev/stderr | grep kube-dns- | grep Running; do
+            while ! kubectl get pods --all-namespaces | tee /dev/stderr | grep coredns- | grep Running; do
                 echo .; sleep 1;
             done
         " >> ./kamatera.log 2>&1
