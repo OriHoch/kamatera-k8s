@@ -24,10 +24,8 @@ spec:
         # update the pod on nginx-conf changes
         checksum/config: {{ include (print $.Template.BasePath "/nginx-conf.yaml") . | sha256sum }}
     spec:
-      {{ if not .Values.loadbalancer.allowAnyNode }}
       nodeSelector:
         kamateraloadbalancer: "true"
-      {{ end }}
       containers:
       - name: nginx
         image: nginx
