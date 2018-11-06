@@ -10,7 +10,7 @@ Login to [Kamatera Console](https://www.kamatera.com/express/compute/?scamp=k8sg
 
 Install some basic dependencies to manage the cluster from the CLI
 
-#### Ubuntu 16.04 LTS based systems
+#### Ubuntu 18.04 LTS based systems
 
 ```
 sudo apt update
