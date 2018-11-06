@@ -44,13 +44,13 @@ chmod 700 get_helm.sh
 Clone the `kamatera-k8s` repository to a new project directory
 
 ```
-git clone https://github.com/ddark-il/kamatera-k8s.git my-kamatera-k8s-project
+git clone https://github.com/ddark-il/kamatera-k8s.git kamatera-k8s
 ```
 
 All the following commands should run from the kamatera-k8s project directory
 
 ```
-cd my-kamatera-k8s-project
+cd kamatera-k8s
 ```
 
 ## Login to Kamatera Cloud
