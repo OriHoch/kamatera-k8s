@@ -15,10 +15,8 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/loadbalancer-conf.yaml") . | sha256sum }}
     spec:
-      {{ if not .Values.loadbalancer.allowAnyNode }}
       nodeSelector:
         kamateraloadbalancer: "true"
-      {{ end }}
       containers:
       - name: traefik-conf
         image: alpine

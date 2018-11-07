@@ -4,33 +4,21 @@ Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud Plat
 
 [![Build Status](https://travis-ci.org/OriHoch/kamatera-k8s.svg?branch=master)](https://travis-ci.org/OriHoch/kamatera-k8s)
 
-
 ## Installation
 
-Login to [Kamatera Console](https://www.kamatera.com/express/compute/?scamp=k8sgithub), Create new tiny server configuration running Debian/Ubuntu or CentOS and connect to it via ssh.
+Login to [Kamatera Console](https://www.kamatera.com/express/compute/?scamp=k8sgithub), Create new tiny server configuration running Ubuntu 16.04/18.04 and connect to it via ssh.
 
 ### System dependencies
 
 Install some basic dependencies to manage the cluster from the CLI
 
-#### Ubuntu 16.04 LTS based systems
+#### Ubuntu 16.04/18.04 LTS based systems
 
 ```
-sudo apt-get update
-sudo apt-get install curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
-                     lsb-release openssh-client git bash jq sshpass openssh-client bash-completion
-sudo easy_install -U pip
+sudo apt update
+sudo apt install curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
+                     lsb-release openssh-client git bash jq sshpass openssh-client bash-completion python-pip
 sudo pip install -U crcmod 'python-dotenv[cli]' pyyaml
-```
-
-#### CentOS/RHEL 7 based systems
-
-```
-yum update -y
-yum install -y curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
-                    lsb-release openssh-client git bash jq sshpass openssh-client bash-completion
-easy_install -U pip
-pip install -U crcmod 'python-dotenv[cli]' pyyaml
 ```
 
 ### Install Kubectl and Helm
