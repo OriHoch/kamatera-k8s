@@ -4,13 +4,13 @@ Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud Plat
 
 ## Installation
 
-Login to [Kamatera Console](https://www.kamatera.com/express/compute/?scamp=k8sgithub), Create new tiny server configuration running Ubuntu 18.04 and connect to it via ssh.
+Login to [Kamatera Console](https://www.kamatera.com/express/compute/?scamp=k8sgithub), Create new tiny server configuration running Ubuntu 16.04/18.04 and connect to it via ssh.
 
 ### System dependencies
 
 Install some basic dependencies to manage the cluster from the CLI
 
-#### Ubuntu 18.04 LTS based systems
+#### Ubuntu 16.04/18.04 LTS based systems
 
 ```
 sudo apt update
@@ -44,13 +44,13 @@ chmod 700 get_helm.sh
 Clone the `kamatera-k8s` repository to a new project directory
 
 ```
-git clone https://github.com/ddark-il/kamatera-k8s.git kamatera-k8s
+git clone https://github.com/OriHoch/kamatera-k8s.git my-kamatera-k8s-project
 ```
 
 All the following commands should run from the kamatera-k8s project directory
 
 ```
-cd kamatera-k8s
+cd my-kamatera-k8s-project
 ```
 
 ## Login to Kamatera Cloud
