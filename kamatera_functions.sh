@@ -92,7 +92,7 @@ kamatera_cluster_create_base_node() {
         echo "${name}" > "${SERVER_PATH}/name"
         params="datacenter=${DEFAULT_DATACENTER}&name=${name}&password=${password}&cpu=${CPU}&ram=${RAM}&billing=${DEFAULT_BILLING}"
         rm ./kamatera_server_options.json; ./kamatera.sh update server_options
-        DISK_IMAGE=$(echo '{'`cat ./kamatera_server_options.json | jq -S '.diskImages.'${DEFAULT_DATACENTER} | grep -C1 '"description": "'${DEFAULT_DISK_DESCRIPTION}'"' | grep '"id": "'${DEFAULT_DATACENTER}':'`'"foo":"bar"}' | jq -r .id)
+        DISK_IMAGE=$(cat ./kamatera_server_options.json | grep -A1 -B1 ${DEFAULT_DATACENTER} | grep -A1 ${DEFAULT_DISK_DESCRIPTION} | grep ${DEFAULT_DATACENTER}: | grep -Po "\"${DEFAULT_DATACENTER}:.*\"" |  tr -d '"')
         params+="&power=1&disk_size_0=${DISK_SIZE_GB}&disk_src_0=${DISK_IMAGE/:/%3A}&network_name_0=wan"
         kamatera_debug "params=${params}"
         echo "${params}" > "${SERVER_PATH}/params"
