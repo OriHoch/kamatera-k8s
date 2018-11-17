@@ -2,382 +2,93 @@
 
 Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud Platform](https://www.kamatera.com/express/compute/?scamp=k8sgithub).
 
-[![Build Status](https://travis-ci.org/OriHoch/kamatera-k8s.svg?branch=master)](https://travis-ci.org/OriHoch/kamatera-k8s)
-
-
 ## Installation
 
-Login to [Kamatera Console](https://www.kamatera.com/express/compute/?scamp=k8sgithub), Create new tiny server configuration running Debian/Ubuntu or CentOS and connect to it via ssh.
+[Install Docker Machine](https://docs.docker.com/machine/install-machine/)
 
-### System dependencies
+Download the latest [Kamatera Docker Machine driver](https://github.com/OriHoch/docker-machine-driver-kamatera/releases), extract and place the binary in your PATH
 
-Install some basic dependencies to manage the cluster from the CLI
+## Create the kamatera-cloud-management Docker Machine
 
-#### Debian/Ubuntu based systems
+This is a standalone server used to run Rancher
 
 ```
-sudo apt-get update
-sudo apt-get install curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
-                     lsb-release openssh-client git bash jq sshpass openssh-client bash-completion
-sudo easy_install -U pip
-sudo pip install -U crcmod 'python-dotenv[cli]' pyyaml
+docker-machine create --driver kamatera --kamatera-api-client-id <YOUR_API_CLIENT_ID> --kamatera-api-secret <YOUR_API_SECRET> \
+                      --kamatera-ram 2048 --kamatera-cpu 2B kamatera-cloud-management
 ```
 
-#### CentOS/RHEL based systems
+Verify the cloud-management server is running and accessible via Docker Machine
 
 ```
-yum update -y
-yum install -y curl gcc python-dev python-setuptools apt-transport-https apache2-utils \
-                    lsb-release openssh-client git bash jq sshpass openssh-client bash-completion
-easy_install -U pip
-pip install -U crcmod 'python-dotenv[cli]' pyyaml
+eval $(docker-machine env kamatera-cloud-management) &&\
+docker version && docker run hello-world
 ```
 
-### Install Kubectl and Helm
+## Install Nginx and SSL on kamatera-cloud-management
 
-Standard Kubernetes tools to manage the cluster and deployments
+The following script install Nginx and configures Let's Encrypt for SSL on the `kamatera-cloud-management` Docker Machine:
 
-Install latest [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-
-```
-curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
-chmod +x ./kubectl
-sudo mv ./kubectl /usr/local/bin/kubectl
-```
-
-Install latest [Helm](https://github.com/kubernetes/helm/blob/master/docs/install.md)
-
-```
-curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get > get_helm.sh
-chmod 700 get_helm.sh
-./get_helm.sh
-```
-
-## Create your Kamatera Kubernetes project
-
-Clone the `kamatera-k8s` repository to a new project directory
-
-```
-git clone https://github.com/OriHoch/kamatera-k8s.git my-kamatera-k8s-project
-```
-
-All the following commands should run from the kamatera-k8s project directory
-
-```
-cd my-kamatera-k8s-project
-```
-
-## Login to Kamatera Cloud
-
-Login with your Kamatera API clientId and secret
-
-```
-./kamatera.sh auth login
-```
-
-## Review cluster settings
-
-Review and modify (if needed) settings in `constants.sh`
-
-Run `./kamatera.sh update server_options` to update the available options in `kamatera_server_options.json`
-
-Refer to `kamatera_server_options.json` for the latest available settings
-
-## Create a new cluster
-
-Creates a full cluster, by default, containing 1 master node, 1 worker node and 1 load balancer node
-
-```
-./kamatera.sh cluster create <ENVIRONMENT_NAME>
-```
-
-* **ENVIRONMENT_NAME** - a unique name to identify your cluster, e.g. `testing` / `production`
-
-When the cluster is created you should have the cluster configuration available under `environments/ENVIRONMENT_NAME/`
-
-
-## Kubernetes Dashboard
-
-Check the output log of cluster create for your dashboard URL and credentials
-
-You can also create a secure tunnel to the kubernetes dashboard allowing to access it without a password
-
-```
-./kamatera.sh cluster web-ui <ENVIRONMENT_NAME>
-```
-
-The Kubernets Dashboard will then be available at http://localhost:9090/
-
-
-## Run a workload on the cluster
-
-Start a shell connected to the relevant environment
-
-```
-./kamatera.sh cluster shell <ENVIRONMENT_NAME>
-```
-
-All kubectl commands will now run for this environment
-
-Start a tiny Elasticsearch pod on the cluster, limited to worker nodes only
-
-```
-kubectl run elasticsearch --image=docker.elastic.co/elasticsearch/elasticsearch-oss:6.2.1 \
-                          --port=9200 --replicas=1 --env=discovery.type=single-node --expose \
-                          --requests=cpu=100m,memory=300Mi \
-                          --limits=cpu=300m,memory=600Mi \
-                          --env=ES_JAVA_OPTS="-Xms256m -Xmx256m" \
-                          --overrides='{"spec":{"template":{"spec":{"nodeSelector":{"kamateranode":"true"}}}}}'
-```
-
-Wait for deployment to complete (might take a bit to download the elasticsearch image)
-
-```
-kubectl rollout status deployment elasticsearch
-```
-
-Check the pod status and logs
-
-```
-kubectl get pods
-kubectl logs ELASTICSEARCH_POD_NAME
-```
-
-
-## Add worker nodes
-
-You can add additional worker nodes of different types
-
-```
-./kamatera.sh cluster node add <ENVIRONMENT_NAME> <CPU> <RAM> <DISK_SIZE>
-```
-
-The parameters following environment name may be modified to specify required resources:
-
-* **CPU** - should be at least `2B` = 2 cores
-* **RAM** - should be at least `2048` = 2GB
-* **DISK_SIZE** - in GB
-
-See `kamatera_server_options.json` for the list of available CPU / RAM / DISK_SIZE options.
-
-Once the node is added and joined the cluster, workloads will automatically start to be scheduled on it.
-
-You should restrict workloads to the worker nodes only by setting the following node selector on the pods:
-
-```
-nodeSelector:
-    kamateranode: "true"
-```
-
-
-## Configure persistent storage for workloads
-
-You can add persistent storage using the pre-installed [Rook cluster](https://rook.io/)
-
-Add a [Rook filesystem](https://github.com/rook/rook/blob/master/Documentation/filesystem.md) to provide simple shared filesystem for persistent storage
-
-```
-apiVersion: rook.io/v1alpha1
-kind: Filesystem
-metadata:
-  name: elasticsearchfs
-  namespace: rook
-spec:
-  metadataPool:
-    replicated:
-      size: 3
-  dataPools:
-    - erasureCoded:
-       dataChunks: 2
-       codingChunks: 1
-  metadataServer:
-    activeCount: 1
-    activeStandby: true
-```
-
-And use it in a pod
-
-```
-        volumeMounts:
-        - name: data
-          mountPath: /data
-      volumes:
-      - name: data
-        flexVolume:
-          driver: rook.io/rook
-          fsType: ceph
-          options:
-            fsName: data
-            clusterName: rook
-```
-
-Once the filesystem is deployed you can verify by running `kubectl get filesystem -n rook`
-
-To debug storage problems, use [Rook Toolbox](https://github.com/rook/rook/blob/master/Documentation/toolbox.md#rook-toolbox)
-
-
-## Using port forwarding to access internal cluster services
-
-You can connect to any pod in the cluster using kubectl port-forward.
-
-This is a good option to connect to internal services without exposing them publically and dealing with authentication.
-
-Following will start a port from your local machine port 9200 to an elasticsearch pod on port 9200
-
-```
-kubectl port-forward `kubectl get pods | grep elasticsearch- | cut -d" " -f1 -` 9200
-```
-
-Elasticsearch should be accessible at http://localhost:9200
-
-
-## Exposing internal cluster services publically
-
-You can use the provided nginx pod to expose services
-
-Modify the nginx configuration in `templates/nginx-conf.yaml` according to the routing requirements
-
-For example, add the following under `default.conf` before the last closing curly bracket to route to the elasticsearch pod:
-
-```
-      location /elasticsearch {
-        proxy_pass http://elasticsearch:9200/;
-      }
-```
-
-Reload the loadbalancer to apply configuration changes
-
-```
-./kamatera.sh cluster loadbalancer reload <ENVIRONMENT_NAME>
-```
-
-Elasticsearch should be accessible at https://PUBLIC_IP/elasticsearch
-
-(You can get your IP by running `./kamatera.sh cluster loadbalancer info <ENVIRONMENT_NAME>` )
-
-
-## Simple service security using http authentication
-
-Add http authentication to your elasticsearch by adding `include /etc/nginx/conf.d/restricted.inc;` to the relevant location configuration
-
-For example:
-
-```
-      location /elasticsearch {
-        proxy_pass http://elasticsearch:9200/;
-        include /etc/nginx/conf.d/restricted.inc;
-      }
-```
-
-The nginx password is stored in a kubernetes secret, you can modify the htpasswd file used:
-
-```
-htpasswd -bc secret-htpasswd-file username "$(read -sp password: && echo $REPLY)"
-kubectl delete secret nginx-htpasswd
-kubectl create secret generic nginx-htpasswd --from-file=secret-htpasswd-file
-```
-
-Apply the changes by reloading the loadbalancer
-
-```
-./kamatera.sh cluster loadbalancer reload <ENVIRONMENT_NAME>
-```
-
-
-## Advanced topics
-
-
-### Node Management
-
-Get list of nodes
-
-```
-kubectl get nodes
-```
-
-Drain a problematic node
-
 ```
-kubectl drain NODE_NAME
+docker-machine ssh kamatera-cloud-management \
+    'bash -c "curl -L https://raw.githubusercontent.com/OriHoch/kamatera-k8s/v2-rancher/cloud-management/install_nginx_ssl.sh | sudo bash"'
 ```
 
-You can reboot the node servers from kamatera web UI, the cluster will be updated automatically
+Get the kamatera-cloud-management server IP:
 
-Once node is back, allow to schedule workloads on it
-
 ```
-kubectl uncordon NODE_NAME
+docker-machine ip kamatera-cloud-management
 ```
-
 
-### Using Helm for Deployment
+Register a subdomain to point to that IP e.g. `kamatera-cloud-management.your-domain.com`
 
-The core infrastructure components are defined in `templates` directory as helm / kubernetes charts.
+Register the SSL certificate (set suitable values for the environment variables):
 
-To deploy the root helm chart and ensure the core required components are deployed use the `cluster deploy` command:
-
-```
-./kamatera.sh cluster deploy <ENVIRONMENT_NAME> [HELM_UPGRADE_ARGS]..
 ```
+export LETSENCRYPT_EMAIL=your@email.com
+export LETSENCRYPT_DOMAIN=kamatera-cloud-management.your-domain.com
 
-Sub-charts are defined independently and can be deployed using `helm_upgrade_external_chart` script:
-
+docker-machine ssh kamatera-cloud-management \
+    'bash -c "curl -L https://raw.githubusercontent.com/OriHoch/kamatera-k8s/v2-rancher/cloud-management/setup_ssl.sh | sudo bash -s "'${LETSENCRYPT_EMAIL} ${LETSENCRYPT_DOMAIN}'""'
 ```
-./kamatera.sh cluster shell <ENVIRONMENT_NAME> ./helm_upgrade_external_chart.sh <CHART_NAME> [HELM_UPGRADE_ARGS]..
-```
-
-All the helm charts and kubernetes templates are in the current working directory under `charts-external`, `charts` and `templates` directories.
 
-The helm values are in `values.yaml` files.
+## Install Rancher
 
-Depending on the changes you might need to add arguments to helm upgrade
+Create the Rancher data directory
 
-* On first installation you should add `--install`
-* To force deployment at cost of down-time: `--force --recreate-pods`
-* For debugging: `--debug --dry-run`
-
-refer to the [Helm documentation](https://helm.sh/) for details.
-
-Alternatively - you can use `kubectl apply -f` to install kubernetes templates directly without helm e.g.
-
 ```
-./kamatera.sh cluster shell <ENVIRONMENT_NAME> kubectl apply -f kubernetes_template_file.yaml
+docker-machine ssh kamatera-cloud-management sudo mkdir -p /etc/kamatera-cloud/rancher
 ```
-
-
-### Load Balancer configuration
 
-Configure the load balancer by setting values in `environments/ENVIRONMNET_NAME/values.yaml`,
-check [this list](https://docs.traefik.io/configuration/acme/#provider) for the possible dns providers and required environment variables.
-You can see where the configuration values are used in `templates/loadbalancer.yaml` and `templates/loadbalancer-conf.yaml`
+Start Rancher on kamatera-cloud-management
 
-Get the load balancer public IP to set DNS:
-
 ```
-./kamatera.sh cluster loadbalancer info <ENVIRONMENT_NAME>
+eval $(docker-machine env kamatera-cloud-management) &&\
+docker run -d --name kamatera-rancher --restart unless-stopped \
+               -p 8000:80 \
+               -v "/etc/kamatera-cloud/rancher:/var/lib/rancher" \
+               rancher/rancher:stable
 ```
 
-If you made any changes to the load balancer configuration you should reload
+Add Rancher to Nginx
 
-```
-./kamatera.sh cluster loadbalancer reload <ENVIRONMENT_NAME>
 ```
+export LETSENCRYPT_DOMAIN=kamatera-cloud-management.your-domain.com
 
-Traefik Web UI is not exposed publicly by default, you can access it via a proxy
-
+docker-machine ssh kamatera-cloud-management \
+    'bash -c "curl -L https://raw.githubusercontent.com/OriHoch/kamatera-k8s/v2-rancher/cloud-management/add_rancher_to_nginx.sh | sudo bash -s "'${LETSENCRYPT_DOMAIN}'""'
 ```
-./kamatera.sh cluster loadbalancer web-ui <ENVIRONMENT_NAME>
-```
-
-Load balancer Web UI is available at http://localhost:3033/
 
+## Create a Cluster
 
-### Accessing the kamatera kubernetes context directly
+Wait a few minutes for Rancher to start, then activate it via the web-ui at your cloud management domain.
 
-If you want to integrate with external kubernetes tools / code, you may want to access the cluster directly
+In the Rancher web-ui -
 
-The kamatera kubernetes connection is based on a custom kubernetes config file, stored in `environments/<ENVIRONMENT_NAME>/secret-admin.conf`
+Node Drivers > Add Node Driver >
+Paste the latest Linux amd64 [docker-machine-driver-kamatera](https://github.com/OriHoch/docker-machine-driver-kamatera/releases) release archive in the Download Url field and click Create.
 
-To make kubectl use this file, export KUBECONFIG environment variable:
+Clusters > Add Cluster >
+Choose Kamatera driver and configure the node pools - 
+For each node pool, click on Add Node Template to set the Kamatera API keys and CPU / RAM settings
 
-```export KUBECONFIG=`pwd`/environments/${K8S_ENVIRONMENT_NAME}/secret-admin.conf```
+Recommended to use a minimum of CPU=2B and ram=2048 for each nodes and to create at least 1 dedicated master node for the control plane and etcd.
