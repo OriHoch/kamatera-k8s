@@ -8,13 +8,21 @@ Step by step guide to setting up a kubernetes cluster using [Kamatera Cloud Plat
 
 Download the latest [Kamatera Docker Machine driver](https://github.com/OriHoch/docker-machine-driver-kamatera/releases), extract and place the binary in your PATH
 
+Get a Kamatera API client id and secret from the Kamatera console web-ui
+
+Set in environment variables:
+
+```
+export KAMATERA_API_CLIENT_ID=<YOUR_API_CLIENT_ID>
+export KAMATERA_API_SECRET=<YOUR_API_SECRET>
+```
+
 ## Create the kamatera-cloud-management Docker Machine
 
 This is a standalone server used to run Rancher
 
 ```
-docker-machine create --driver kamatera --kamatera-api-client-id <YOUR_API_CLIENT_ID> --kamatera-api-secret <YOUR_API_SECRET> \
-                      --kamatera-ram 2048 --kamatera-cpu 2B kamatera-cloud-management
+docker-machine create --driver kamatera --kamatera-ram 2048 --kamatera-cpu 2B kamatera-cloud-management
 ```
 
 Verify the cloud-management server is running and accessible via Docker Machine
@@ -48,7 +56,8 @@ export LETSENCRYPT_EMAIL=your@email.com
 export LETSENCRYPT_DOMAIN=kamatera-cloud-management.your-domain.com
 
 docker-machine ssh kamatera-cloud-management \
-    'bash -c "curl -L https://raw.githubusercontent.com/OriHoch/kamatera-k8s/v2-rancher/cloud-management/setup_ssl.sh | sudo bash -s "'${LETSENCRYPT_EMAIL} ${LETSENCRYPT_DOMAIN}'""'
+    'bash -c "curl -L https://raw.githubusercontent.com/OriHoch/kamatera-k8s/v2-rancher/cloud-management/setup_ssl.sh \
+                  | sudo bash -s '${LETSENCRYPT_EMAIL}' '${LETSENCRYPT_DOMAIN}'"'
 ```
 
 ## Install Rancher
@@ -75,7 +84,8 @@ Add Rancher to Nginx
 export LETSENCRYPT_DOMAIN=kamatera-cloud-management.your-domain.com
 
 docker-machine ssh kamatera-cloud-management \
-    'bash -c "curl -L https://raw.githubusercontent.com/OriHoch/kamatera-k8s/v2-rancher/cloud-management/add_rancher_to_nginx.sh | sudo bash -s "'${LETSENCRYPT_DOMAIN}'""'
+    'bash -c "curl -L https://raw.githubusercontent.com/OriHoch/kamatera-k8s/v2-rancher/cloud-management/add_rancher_to_nginx.sh \
+                  | sudo bash -s '${LETSENCRYPT_DOMAIN}'"'
 ```
 
 ## Create a Cluster

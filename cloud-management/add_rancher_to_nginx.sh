@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+LETSENCRYPT_DOMAIN="$1"
+
 echo 'server {
   listen 80;
   listen    [::]:80;
